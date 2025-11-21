@@ -1,10 +1,11 @@
-from google.adk.agents.llm_agent import Agent
+from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
-from google.adk.tools.google_search_tool import google_search
+from google.adk.tools.agent_tool import AgentTool
 
+from .sub_agents.ingestion_agent import ingestion_agent
 from .utils.consts import retry_config
 
-root_agent = Agent(
+root_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="root_orchestrator",
     description=(
@@ -17,9 +18,13 @@ root_agent = Agent(
     instruction=(
         """You are the orchestrator.
         Do not analyze data yourself.
+        When the user uploads a file or requests ingestion,
+        delegate to the ingestion_agent tool directly.
+        The ingestion_agent is responsible for saving the file
+        and performing ingestion.
         Decide which specialized agent should handle the next step.
-        If information is missing, request it.
-        Use tools when you need external context."""
+        If information is missing, request it from the user.
+        """
     ),
-    tools=[google_search],
+    tools=[AgentTool(agent=ingestion_agent)],
 )
