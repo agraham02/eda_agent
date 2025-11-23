@@ -2,7 +2,10 @@ from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
 from google.adk.tools.agent_tool import AgentTool
 
+from .sub_agents.data_quality_agent import data_quality_agent
+from .sub_agents.eda_agent.eda_manager_agent import eda_manager_agent
 from .sub_agents.ingestion_agent import ingestion_agent
+from .sub_agents.wrangle_agent import wrangle_agent
 from .utils.consts import retry_config
 
 root_agent = LlmAgent(
@@ -17,14 +20,21 @@ root_agent = LlmAgent(
     ),
     instruction=(
         """You are the orchestrator.
-        Do not analyze data yourself.
-        When the user uploads a file or requests ingestion,
-        delegate to the ingestion_agent tool directly.
-        The ingestion_agent is responsible for saving the file
-        and performing ingestion.
-        Decide which specialized agent should handle the next step.
-        If information is missing, request it from the user.
+
+        - When the user uploads a file, call the ingestion_agent to ingest it.
+        - When the user asks about missing values, duplicates, data quality,
+          or whether the dataset is "clean", call the data_quality_agent
+          and pass the relevant dataset_id.
+        - Do not analyze the raw data yourself. Always delegate to the
+          appropriate specialist agent or tool.
+        - If information is missing (for example, which dataset to use),
+          ask the user to clarify.
         """
     ),
-    tools=[AgentTool(agent=ingestion_agent)],
+    tools=[
+        AgentTool(agent=ingestion_agent),
+        AgentTool(agent=data_quality_agent),
+        AgentTool(agent=wrangle_agent),
+        AgentTool(agent=eda_manager_agent),
+    ],
 )
