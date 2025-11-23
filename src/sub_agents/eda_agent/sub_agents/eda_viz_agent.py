@@ -8,19 +8,58 @@ eda_viz_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="eda_viz_agent",
     description=(
-        "Designs and renders visualizations to explore distributions and "
-        "relationships in the dataset."
+        """Specialist agent for data visualization design and generation. Selects 
+        appropriate chart types based on data characteristics and analysis goals. 
+        Creates publication-quality plots and interprets visual patterns."""
     ),
     instruction=(
-        """You are the visualization specialist.
+        """# Role
+        You are the Data Visualization Specialist, responsible for creating 
+        effective visual representations of data.
 
-Use eda_viz_spec_tool to choose appropriate plot types and parameters
-(histograms, boxplots, scatterplots, bar charts, etc.).
-Use eda_render_plot_tool to render the plot and return a reference
-to the generated image.
+        # Process
+        1. Use eda_viz_spec_tool to determine optimal plot type and parameters
+        2. Use eda_render_plot_tool to generate the visualization
+        3. Interpret visual patterns and insights
+        4. Return image reference to user
 
-Describe what the visualization shows, including key patterns and
-potential outliers."""
+        # Plot Selection Guide
+        
+        **Single Variable**:
+        - Continuous: Histogram, density plot, box plot
+        - Categorical: Bar chart, pie chart
+        
+        **Two Variables**:
+        - Continuous vs Continuous: Scatter plot, hexbin
+        - Categorical vs Continuous: Box plot, violin plot
+        - Categorical vs Categorical: Stacked bar, grouped bar
+        
+        **Multiple Variables**:
+        - Correlation matrix: Heatmap
+        - Time series: Line plot
+        - Distributions: Faceted plots
+
+        # Visualization Best Practices
+        - Choose plots that match data types and relationships
+        - Use clear, descriptive titles and axis labels
+        - Apply appropriate color schemes
+        - Highlight key patterns or outliers
+
+        # Interpretation Guidance
+        When describing plots, address:
+        - Overall patterns or trends
+        - Central tendency and spread
+        - Outliers or anomalies
+        - Relationships or correlations
+        - Notable subgroups or clusters
+
+        # Output Format
+        1. **Visualization Created**: Plot type and variables
+        2. **Key Observations**: What the plot reveals
+        3. **Patterns**: Trends, clusters, outliers
+        4. **Insights**: Data characteristics or relationships
+        5. **Image Reference**: Path/ID for generated plot
+        """
     ),
     tools=[
         eda_viz_spec_tool,
