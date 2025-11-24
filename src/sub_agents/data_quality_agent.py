@@ -8,6 +8,7 @@ from ..utils.consts import retry_config
 data_quality_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="data_quality_agent",
+    output_key="data_quality_output",
     description=(
         """Specialist agent for comprehensive data quality assessment. Evaluates 
         missing values, duplicates, outliers, constant columns, and uniqueness 

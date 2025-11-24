@@ -3,11 +3,18 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from ..tools.ingestion_tools import infer_semantic_type  # reuse your logic
+from ..tools.ingestion_tools import infer_semantic_type  # reuse logic
 from ..utils.data_store import get_dataset
+from ..utils.errors import exception_to_error, wrap_success
+from ..utils.schemas import (
+    DataQualityColumn,
+    DataQualityResult,
+    NumericSummary,
+    SemanticType,
+)
 
 
-def _numeric_summary(series: pd.Series) -> Optional[Dict[str, Any]]:
+def _numeric_summary(series: pd.Series) -> Optional[NumericSummary]:
     if not pd.api.types.is_numeric_dtype(series.dtype):
         return None
 
@@ -23,19 +30,19 @@ def _numeric_summary(series: pd.Series) -> Optional[Dict[str, Any]]:
     # Optional: truncate to avoid huge JSON
     outliers_preview = outliers[:20]  # first 20 only
 
-    return {
-        "mean": float(desc["mean"]),
-        "std": float(desc["std"]) if not np.isnan(desc["std"]) else None,
-        "min": float(desc["min"]),
-        "q1": float(q1),
-        "median": float(desc["50%"]),
-        "q3": float(q3),
-        "max": float(desc["max"]),
-        "iqr": float(iqr),
-        "outlier_count": len(outliers),
-        "outliers": outliers_preview,
-        "outliers_truncated": len(outliers) > 20,
-    }
+    return NumericSummary(
+        mean=float(desc["mean"]),
+        std=float(desc["std"]) if not np.isnan(desc["std"]) else None,
+        min=float(desc["min"]),
+        q1=float(q1),
+        median=float(desc["50%"]),
+        q3=float(q3),
+        max=float(desc["max"]),
+        iqr=float(iqr),
+        outlier_count=len(outliers),
+        outliers=outliers_preview,
+        outliers_truncated=len(outliers) > 20,
+    )
 
 
 def data_quality_tool(dataset_id: str) -> Dict[str, Any]:
@@ -43,13 +50,20 @@ def data_quality_tool(dataset_id: str) -> Dict[str, Any]:
     Run basic data quality checks on a dataset that has already been
     ingested and stored in the in-memory data store.
     """
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return exception_to_error(
+            "dataset_not_found",
+            e,
+            hint="Ingest dataset with ingest_csv_tool before quality analysis",
+        )
 
     n_rows, n_cols = df.shape
     duplicate_count = int(df.duplicated().sum())
     duplicate_pct = float(duplicate_count / max(1, n_rows))
 
-    columns: List[Dict[str, Any]] = []
+    column_models: List[DataQualityColumn] = []
     dataset_issues: List[str] = []
 
     if duplicate_count > 0:
@@ -89,31 +103,27 @@ def data_quality_tool(dataset_id: str) -> Dict[str, Any]:
         else:
             numeric_stats = None
 
-        columns.append(
-            {
-                "name": col,
-                "pandas_dtype": pandas_dtype,
-                "semantic_type": semantic_type,
-                "n_missing": n_missing,
-                "missing_pct": missing_pct,
-                "n_unique": n_unique,
-                "is_constant": is_constant,
-                "is_all_unique": is_all_unique,
-                "issues": col_issues,
-                "numeric_summary": numeric_stats,
-            }
+        column_models.append(
+            DataQualityColumn(
+                name=col,
+                pandas_dtype=pandas_dtype,
+                semantic_type=SemanticType(semantic_type) if semantic_type in SemanticType.__members__.values() else SemanticType.UNKNOWN,  # type: ignore
+                n_missing=n_missing,
+                missing_pct=missing_pct,
+                n_unique=n_unique,
+                is_constant=is_constant,
+                is_all_unique=is_all_unique,
+                issues=col_issues,
+                numeric_summary=numeric_stats,
+            )
         )
 
-    result: Dict[str, Any] = {
-        "dataset_id": dataset_id,
-        "n_rows": n_rows,
-        "n_columns": n_cols,
-        "duplicate_rows": {
-            "count": duplicate_count,
-            "pct": duplicate_pct,
-        },
-        "columns": columns,
-        "dataset_issues": dataset_issues,
-    }
-
-    return result
+    result_model = DataQualityResult(
+        dataset_id=dataset_id,
+        n_rows=n_rows,
+        n_columns=n_cols,
+        duplicate_rows={"count": duplicate_count, "pct": duplicate_pct},
+        columns=column_models,
+        dataset_issues=dataset_issues,
+    )
+    return wrap_success(result_model.model_dump())
