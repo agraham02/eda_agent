@@ -9,6 +9,7 @@ from ..utils.consts import retry_config
 ingestion_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="ingestion_agent",
+    output_key="ingestion_output",
     description=(
         """Specialist agent for ingesting tabular data files (CSV) into the system. 
         Handles file persistence, data loading, schema detection, and initial 

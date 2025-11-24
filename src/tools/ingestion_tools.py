@@ -3,6 +3,8 @@ from typing import Any, Dict, List
 import pandas as pd
 
 from ..utils.data_store import register_dataset
+from ..utils.errors import exception_to_error, wrap_success
+from ..utils.schemas import ColumnInfo, IngestionResult, SemanticType
 
 
 def infer_semantic_type(dtype: str, n_unique: int, n_rows: int) -> str:
@@ -48,7 +50,7 @@ def ingest_csv(file_path: str, max_sample_rows: int = 20) -> Dict[str, Any]:
 
     n_rows, n_cols = df.shape
 
-    columns: List[Dict[str, Any]] = []
+    column_models: List[ColumnInfo] = []
     warnings: List[str] = []
 
     for col in df.columns:
@@ -66,38 +68,44 @@ def ingest_csv(file_path: str, max_sample_rows: int = 20) -> Dict[str, Any]:
         # Take a few non-null example values as strings
         non_null = series.dropna().astype(str).head(5).tolist()
 
-        columns.append(
-            {
-                "name": col,
-                "pandas_dtype": pandas_dtype,
-                "semantic_type": semantic_type,
-                "n_missing": n_missing,
-                "missing_pct": missing_pct,
-                "n_unique": n_unique,
-                "example_values": non_null,
-            }
+        column_models.append(
+            ColumnInfo(
+                name=col,
+                pandas_dtype=pandas_dtype,
+                semantic_type=SemanticType(semantic_type) if semantic_type in SemanticType.__members__.values() else SemanticType.UNKNOWN,  # type: ignore
+                n_missing=n_missing,
+                missing_pct=missing_pct,
+                n_unique=n_unique,
+                example_values=non_null,
+            )
         )
 
-    sample_rows = df.head(max_sample_rows).to_dict(orient="records")
+    sample_rows = [
+        {str(k): v for k, v in row.items()}
+        for row in df.head(max_sample_rows).to_dict(orient="records")
+    ]
 
-    result: Dict[str, Any] = {
-        "dataset_id": dataset_id,
-        "n_rows": n_rows,
-        "n_columns": n_cols,
-        "columns": columns,
-        "sample_rows": sample_rows,
-        "warnings": warnings,
-        "source": {
-            "file_path": file_path,
-            "format": "csv",
-        },
-    }
+    result_model = IngestionResult(
+        dataset_id=dataset_id,
+        n_rows=n_rows,
+        n_columns=n_cols,
+        columns=column_models,
+        sample_rows=sample_rows,
+        warnings=warnings,
+        source={"file_path": file_path, "format": "csv"},
+    )
 
-    return result
+    payload = result_model.model_dump()
+    return wrap_success(payload)
 
 
 def ingest_csv_tool(file_path: str) -> Dict[str, Any]:
     """
     Ingest a CSV file into the Data Whisperer system.
     """
-    return ingest_csv(file_path)
+    try:
+        return ingest_csv(file_path)
+    except Exception as e:
+        return exception_to_error(
+            "ingestion_error", e, hint="Ensure file path is accessible and valid CSV"
+        )
