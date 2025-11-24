@@ -11,6 +11,7 @@ from ..utils.consts import retry_config
 wrangle_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="wrangle_agent",
+    output_key="wrangle_output",
     description=(
         """Specialist agent for data transformation operations. Handles row filtering, 
         column selection, and feature engineering. All transformations are non-destructive, 

@@ -5,6 +5,8 @@ from typing import Any, Dict, List
 import pandas as pd
 
 from ..utils.data_store import get_dataset, register_dataset
+from ..utils.errors import make_error, wrap_success
+from ..utils.schemas import FilterResult, MutateResult, SelectResult
 
 
 def apply_row_filter(
@@ -19,7 +21,15 @@ def apply_row_filter(
 
     Returns metadata and a new dataset_id for the filtered frame.
     """
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return make_error(
+            "dataset_not_found",
+            str(e),
+            hint="Ingest dataset before filtering",
+            context={"dataset_id": dataset_id},
+        )
 
     try:
         # Use pandas query syntax for safety and familiarity.
@@ -29,15 +39,16 @@ def apply_row_filter(
 
     new_dataset_id = register_dataset(filtered)
 
-    return {
-        "operation": "filter_rows",
-        "original_dataset_id": dataset_id,
-        "new_dataset_id": new_dataset_id,
-        "condition": condition,
-        "n_rows_before": int(len(df)),
-        "n_rows_after": int(len(filtered)),
-        "n_columns": int(df.shape[1]),
-    }
+    result = FilterResult(
+        original_dataset_id=dataset_id,
+        new_dataset_id=new_dataset_id,
+        condition=condition,
+        n_rows_before=int(len(df)),
+        n_rows_after=int(len(filtered)),
+        n_columns=int(df.shape[1]),
+        n_rows=int(len(filtered)),
+    )
+    return wrap_success(result.model_dump())
 
 
 def select_columns(
@@ -49,7 +60,15 @@ def select_columns(
 
     Returns metadata and a new dataset_id for the selected frame.
     """
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return make_error(
+            "dataset_not_found",
+            str(e),
+            hint="Ingest dataset before selecting columns",
+            context={"dataset_id": dataset_id},
+        )
 
     missing = [c for c in columns if c not in df.columns]
     if missing:
@@ -58,15 +77,15 @@ def select_columns(
     selected = df[columns].copy()
     new_dataset_id = register_dataset(selected)
 
-    return {
-        "operation": "select_columns",
-        "original_dataset_id": dataset_id,
-        "new_dataset_id": new_dataset_id,
-        "selected_columns": columns,
-        "n_rows": int(len(selected)),
-        "n_columns_before": int(df.shape[1]),
-        "n_columns_after": int(selected.shape[1]),
-    }
+    result = SelectResult(
+        original_dataset_id=dataset_id,
+        new_dataset_id=new_dataset_id,
+        selected_columns=columns,
+        n_rows=int(len(selected)),
+        n_columns_before=int(df.shape[1]),
+        n_columns_after=int(selected.shape[1]),
+    )
+    return wrap_success(result.model_dump())
 
 
 def mutate_columns(
@@ -86,7 +105,15 @@ def mutate_columns(
 
     Returns metadata and a new dataset_id for the modified frame.
     """
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return make_error(
+            "dataset_not_found",
+            str(e),
+            hint="Ingest dataset before mutating columns",
+            context={"dataset_id": dataset_id},
+        )
     modified = df.copy()
 
     existing_cols = set(modified.columns)
@@ -104,16 +131,16 @@ def mutate_columns(
 
     new_dataset_id = register_dataset(modified)
 
-    return {
-        "operation": "mutate_columns",
-        "original_dataset_id": dataset_id,
-        "new_dataset_id": new_dataset_id,
-        "expressions": expressions,
-        "n_rows": int(len(modified)),
-        "n_columns_before": int(df.shape[1]),
-        "n_columns_after": int(modified.shape[1]),
-        "new_columns_created": new_cols_created,
-    }
+    result = MutateResult(
+        original_dataset_id=dataset_id,
+        new_dataset_id=new_dataset_id,
+        expressions=expressions,
+        n_rows=int(len(modified)),
+        n_columns_before=int(df.shape[1]),
+        n_columns_after=int(modified.shape[1]),
+        new_columns_created=new_cols_created,
+    )
+    return wrap_success(result.model_dump())
 
 
 def wrangle_filter_rows_tool(
