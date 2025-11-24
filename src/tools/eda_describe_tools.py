@@ -4,6 +4,12 @@ import numpy as np
 import pandas as pd
 
 from ..utils.data_store import get_dataset
+from ..utils.schemas import (
+    BivariateSummaryResult,
+    CorrelationMatrixResult,
+    UnivariateSummaryItem,
+    UnivariateSummaryResult,
+)
 
 
 # -----------------------------
@@ -12,31 +18,46 @@ from ..utils.data_store import get_dataset
 def build_univariate_summary(
     dataset_id: str,
     columns: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-
+) -> UnivariateSummaryResult:
+    """Build univariate summaries returning a schema model."""
     df = get_dataset(dataset_id)
-    result = {}
 
-    # if no columns specified, summarize all
     if columns is None:
         columns = list(df.columns)
 
+    items: List[UnivariateSummaryItem] = []
+
     for col in columns:
         series = df[col]
-        dtype = series.dtype
-
-        col_summary = {
-            "dtype": str(dtype),
-            "n": int(series.shape[0]),
-            "n_missing": int(series.isna().sum()),
-            "missing_pct": float(series.isna().mean()),
-        }
-
-        # Numeric variables
+        name = col
+        dtype_str = str(series.dtype)
+        n_total = int(series.shape[0])
+        n_missing = int(series.isna().sum())
+        missing_pct = float(series.isna().mean())
         if pd.api.types.is_numeric_dtype(series):
             clean = series.dropna()
-
-            # Central tendency
+            if clean.empty:
+                items.append(
+                    UnivariateSummaryItem(
+                        name=name,
+                        dtype=dtype_str,
+                        n=n_total,
+                        n_missing=n_missing,
+                        missing_pct=missing_pct,
+                        type="numeric",
+                        mean=None,
+                        median=None,
+                        mode=[],
+                        std=None,
+                        iqr=None,
+                        q1=None,
+                        q3=None,
+                        min=None,
+                        max=None,
+                        n_outliers=None,
+                    )
+                )
+                continue
             mean = clean.mean()
             median = clean.median()
             mode_vals = clean.mode().tolist()
@@ -53,41 +74,47 @@ def build_univariate_summary(
             lower = q1 - 1.5 * iqr
             upper = q3 + 1.5 * iqr
             n_outliers = int(((clean < lower) | (clean > upper)).sum())
-
-            col_summary.update(
-                {
-                    "type": "numeric",
-                    "mean": float(mean) if pd.notna(mean) else None,
-                    "median": float(median) if pd.notna(median) else None,
-                    "mode": mode_vals,
-                    "std": float(std) if pd.notna(std) else None,
-                    "iqr": float(iqr),
-                    "q1": float(q1),
-                    "q3": float(q3),
-                    "min": float(min_val),
-                    "max": float(max_val),
-                    "n_outliers": n_outliers,
-                }
+            items.append(
+                UnivariateSummaryItem(
+                    name=name,
+                    dtype=dtype_str,
+                    n=n_total,
+                    n_missing=n_missing,
+                    missing_pct=missing_pct,
+                    type="numeric",
+                    mean=float(mean) if pd.notna(mean) else None,
+                    median=float(median) if pd.notna(median) else None,
+                    mode=mode_vals,
+                    std=float(std) if pd.notna(std) else None,
+                    iqr=float(iqr),
+                    q1=float(q1),
+                    q3=float(q3),
+                    min=float(min_val),
+                    max=float(max_val),
+                    n_outliers=n_outliers,
+                )
             )
 
         # Categorical variables
         else:
             counts = series.value_counts(dropna=False)
             proportions = (counts / len(series)).to_dict()
-
-            col_summary.update(
-                {
-                    "type": "categorical",
-                    "unique_values": list(counts.index.astype(str)),
-                    "counts": {str(k): int(v) for k, v in counts.to_dict().items()},
-                    "proportions": {str(k): float(v) for k, v in proportions.items()},
-                    "mode": series.mode().astype(str).tolist(),
-                }
+            items.append(
+                UnivariateSummaryItem(
+                    name=name,
+                    dtype=dtype_str,
+                    n=n_total,
+                    n_missing=n_missing,
+                    missing_pct=missing_pct,
+                    type="categorical",
+                    mode=series.mode().astype(str).tolist(),
+                    unique_values=list(counts.index.astype(str)),
+                    counts={str(k): int(v) for k, v in counts.to_dict().items()},
+                    proportions={str(k): float(v) for k, v in proportions.items()},
+                )
             )
 
-        result[col] = col_summary
-
-    return {"dataset_id": dataset_id, "summaries": result}
+    return UnivariateSummaryResult(dataset_id=dataset_id, summaries=items)
 
 
 # -----------------------------
@@ -98,10 +125,8 @@ def build_bivariate_summary(
     x: str,
     y: str,
     group_by: Optional[str] = None,
-) -> Dict[str, Any]:
-
+) -> BivariateSummaryResult:
     df = get_dataset(dataset_id)
-
     if x not in df.columns or y not in df.columns:
         raise ValueError("One or both columns not found in dataset")
 
@@ -119,46 +144,48 @@ def build_bivariate_summary(
         clean = df[[x, y]].dropna()
         corr = clean[x].corr(clean[y])
         cov = clean[x].cov(clean[y])
-
-        return {
-            "type": "numeric-numeric",
-            "x": x,
-            "y": y,
-            "n_complete": len(clean),
-            "correlation": float(corr),
-            "covariance": float(cov),
-        }
+        return BivariateSummaryResult(
+            dataset_id=dataset_id,
+            type="numeric-numeric",
+            payload={
+                "x": x,
+                "y": y,
+                "n_complete": len(clean),
+                "correlation": float(corr),
+                "covariance": float(cov),
+            },
+        )
 
     # -------------------------
     # numeric - categorical
     # -------------------------
     if x_numeric and not y_numeric:
-        num = X
-        cat = Y
         group_stats = df.groupby(y)[x].agg(
             ["count", "mean", "median", "std", "min", "max"]
         )
-
-        return {
-            "type": "numeric-categorical",
-            "numeric": x,
-            "categorical": y,
-            "group_summary": group_stats.reset_index().to_dict(orient="records"),
-        }
+        return BivariateSummaryResult(
+            dataset_id=dataset_id,
+            type="numeric-categorical",
+            payload={
+                "numeric": x,
+                "categorical": y,
+                "group_summary": group_stats.reset_index().to_dict(orient="records"),
+            },
+        )
 
     if not x_numeric and y_numeric:
-        num = Y
-        cat = X
         group_stats = df.groupby(x)[y].agg(
             ["count", "mean", "median", "std", "min", "max"]
         )
-
-        return {
-            "type": "numeric-categorical",
-            "numeric": y,
-            "categorical": x,
-            "group_summary": group_stats.reset_index().to_dict(orient="records"),
-        }
+        return BivariateSummaryResult(
+            dataset_id=dataset_id,
+            type="numeric-categorical",
+            payload={
+                "numeric": y,
+                "categorical": x,
+                "group_summary": group_stats.reset_index().to_dict(orient="records"),
+            },
+        )
 
     # -------------------------
     # categorical - categorical
@@ -175,14 +202,17 @@ def build_bivariate_summary(
         expected, index=contingency.index, columns=contingency.columns
     )
 
-    return {
-        "type": "categorical-categorical",
-        "x": x,
-        "y": y,
-        "contingency_counts": contingency.reset_index().to_dict(orient="records"),
-        "proportions": proportions.reset_index().to_dict(orient="records"),
-        "expected_counts": expected_df.reset_index().to_dict(orient="records"),
-    }
+    return BivariateSummaryResult(
+        dataset_id=dataset_id,
+        type="categorical-categorical",
+        payload={
+            "x": x,
+            "y": y,
+            "contingency_counts": contingency.reset_index().to_dict(orient="records"),
+            "proportions": proportions.reset_index().to_dict(orient="records"),
+            "expected_counts": expected_df.reset_index().to_dict(orient="records"),
+        },
+    )
 
 
 # -----------------------------
@@ -191,22 +221,21 @@ def build_bivariate_summary(
 def build_correlation_matrix(
     dataset_id: str,
     columns: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-
+) -> CorrelationMatrixResult:
     df = get_dataset(dataset_id)
-
     if columns is not None:
         df = df[columns]
-
     numeric_df = df.select_dtypes(include=[np.number])
-
     corr = numeric_df.corr()
-
-    return {
-        "dataset_id": dataset_id,
-        "columns": list(numeric_df.columns),
-        "correlation_matrix": corr.to_dict(),
+    corr_dict: Dict[str, Dict[str, float]] = {
+        str(row_key): {str(col_key): float(val) for col_key, val in row_dict.items()}
+        for row_key, row_dict in corr.to_dict().items()
     }
+    return CorrelationMatrixResult(
+        dataset_id=dataset_id,
+        columns=list(numeric_df.columns),
+        correlation_matrix=corr_dict,
+    )
 
 
 # -----------------------------
@@ -216,7 +245,7 @@ def eda_univariate_summary_tool(
     dataset_id: str,
     columns: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    return build_univariate_summary(dataset_id, columns)
+    return build_univariate_summary(dataset_id, columns).model_dump()
 
 
 def eda_bivariate_summary_tool(
@@ -225,11 +254,11 @@ def eda_bivariate_summary_tool(
     y: str,
     group_by: Optional[str] = None,
 ) -> Dict[str, Any]:
-    return build_bivariate_summary(dataset_id, x, y, group_by)
+    return build_bivariate_summary(dataset_id, x, y, group_by).model_dump()
 
 
 def eda_correlation_matrix_tool(
     dataset_id: str,
     columns: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    return build_correlation_matrix(dataset_id, columns)
+    return build_correlation_matrix(dataset_id, columns).model_dump()

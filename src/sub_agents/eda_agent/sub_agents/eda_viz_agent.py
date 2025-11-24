@@ -58,7 +58,12 @@ eda_viz_agent = LlmAgent(
         2. **Key Observations**: What the plot reveals
         3. **Patterns**: Trends, clusters, outliers
         4. **Insights**: Data characteristics or relationships
-        5. **Image Reference**: Path/ID for generated plot
+        5. **Note**: The visualization will be displayed automatically in the UI as an artifact
+        
+        # Important
+        - After calling eda_render_plot_tool, the image will appear in the UI
+        - You should interpret the visualization based on the data and spec
+        - Provide meaningful insights about what the visualization shows
         """
     ),
     tools=[

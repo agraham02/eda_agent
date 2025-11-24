@@ -33,7 +33,14 @@ def run_one_sample_test(
     alternative: "two-sided", "less", or "greater"
     """
 
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return {
+            "error": str(e),
+            "dataset_id": dataset_id,
+            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool."
+        }
 
     if column not in df.columns:
         raise ValueError(f"Column '{column}' not found in dataset")
@@ -159,7 +166,14 @@ def run_two_sample_test(
       "greater" is interpreted as mean(group_a) > mean(group_b)
     """
 
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return {
+            "error": str(e),
+            "dataset_id": dataset_id,
+            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool."
+        }
 
     if column not in df.columns:
         raise ValueError(f"Column '{column}' not found in dataset")
@@ -370,7 +384,14 @@ def build_clt_sampling_summary(
     the Central Limit Theorem for a numeric column.
     """
 
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return {
+            "error": str(e),
+            "dataset_id": dataset_id,
+            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool."
+        }
 
     if column not in df.columns:
         raise ValueError(f"Column '{column}' not found in dataset")

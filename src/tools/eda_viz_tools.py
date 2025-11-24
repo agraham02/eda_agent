@@ -1,11 +1,15 @@
 import os
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+from google.adk.tools.tool_context import ToolContext
+from google.genai import types
 
 from ..utils.data_store import get_dataset
+from ..utils.errors import exception_to_error, wrap_success
+from ..utils.schemas import ChartType, VizResult, VizSpec, validate_column_exists
 
 PLOTS_DIR = "/tmp/data_whisperer_plots"
 os.makedirs(PLOTS_DIR, exist_ok=True)
@@ -31,74 +35,16 @@ def _chart_role(chart_type: str) -> str:
     return "unknown"
 
 
-def build_viz_spec(
-    dataset_id: str,
-    chart_type: str,
-    x: str,
-    y: Optional[str],
-    hue: Optional[str],
-    bins: int,
-) -> Dict[str, Any]:
-    """
-    Internal helper to construct a visualization specification
-    (for example, histogram, boxplot, scatterplot, bar chart).
-
-    This does not render the plot. It just validates inputs and packs a spec
-    that eda_render_plot_tool can use.
-    """
-    df = get_dataset(dataset_id)
-    chart_type = chart_type.lower()
-
-    # Basic validation of columns
-    cols = set(df.columns)
-
-    if x not in cols:
-        raise ValueError(f"x column '{x}' not found in dataset")
-
-    if y is not None and y not in cols:
-        raise ValueError(f"y column '{y}' not found in dataset")
-
-    if hue is not None and hue not in cols:
-        raise ValueError(f"hue column '{hue}' not found in dataset")
-
-    # Simple validation of chart_type
-    allowed_chart_types = {
-        "histogram",
-        "box",
-        "boxplot",
-        "scatter",
-        "bar",
-        "line",
-        "pie",
-    }
-    if chart_type not in allowed_chart_types:
-        raise ValueError(
-            f"Unsupported chart_type '{chart_type}'. "
-            f"Allowed types: {sorted(allowed_chart_types)}"
-        )
-
-    role = _chart_role(chart_type)
-
-    spec: Dict[str, Any] = {
-        "dataset_id": dataset_id,
-        "chart_type": chart_type,
-        "role": role,
-        "x": x,
-        "y": y,
-        "hue": hue,
-        "bins": bins,
-        # Helpful context for the viz agent if it wants to describe the chart
-        "columns_dtypes": {col: str(dtype) for col, dtype in df.dtypes.items()},
-        "n_rows": int(len(df)),
-    }
-
-    return spec
+## NOTE: Previous manual normalization helpers have been removed.
+## Column and chart type normalization now handled by Pydantic validators
+## and validate_column_exists in `schemas.py`.
 
 
-def render_plot_from_spec(spec: Dict[str, Any]) -> str:
+def render_plot_from_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
     """
     Internal helper that takes a visualization spec, renders a plot
-    using matplotlib / seaborn, and returns a file path to the image.
+    using matplotlib / seaborn, and returns a dict with a file path
+    to the image (so the web UI can display it).
     """
     dataset_id = spec["dataset_id"]
     chart_type = spec["chart_type"]
@@ -107,7 +53,15 @@ def render_plot_from_spec(spec: Dict[str, Any]) -> str:
     hue = spec.get("hue")
     bins = spec.get("bins", 10)
 
-    df = get_dataset(dataset_id)
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        raise ValueError(
+            f"Dataset ID '{dataset_id}' not found. "
+            "Please ingest the dataset first using ingest_csv_tool."
+        ) from e
+
+    # Column names already normalized earlier via VizSpec + validate_column_exists.
 
     # Create figure and axes
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -191,7 +145,11 @@ def render_plot_from_spec(spec: Dict[str, Any]) -> str:
     fig.savefig(file_path)
     plt.close(fig)
 
-    return file_path
+    return {
+        "file_path": file_path,
+        "chart_type": chart_type,
+        "dataset_id": dataset_id,
+    }
 
 
 def eda_viz_spec_tool(
@@ -204,25 +162,110 @@ def eda_viz_spec_tool(
 ) -> Dict[str, Any]:
     """
     Tool wrapper to construct a visualization specification for the dataset.
+    Uses Pydantic validation to ensure all parameters are correct.
 
-    The visualization agent should:
-    - Choose chart_type based on the user question and data type
-      (distribution, relationship, comparison, composition). :contentReference[oaicite:3]{index=3}
-    - Provide x, y, and hue columns as needed.
+    Args:
+        dataset_id: Unique identifier for the dataset
+        chart_type: Type of chart (histogram, box, boxplot, scatter, bar, line, pie)
+        x: Column name for x-axis
+        y: Column name for y-axis (optional, depends on chart type)
+        hue: Column name for color grouping (optional)
+        bins: Number of bins for histograms (default 10)
+
+    Returns:
+        Dictionary containing the validated visualization specification
     """
-    return build_viz_spec(
-        dataset_id=dataset_id,
-        chart_type=chart_type,
-        x=x,
-        y=y,
-        hue=hue,
-        bins=bins,
-    )
+    try:
+        # Validate inputs using Pydantic schema
+        spec = VizSpec(
+            dataset_id=dataset_id,
+            chart_type=cast(
+                ChartType, chart_type
+            ),  # Cast to satisfy static type checker
+            x=x,
+            y=y,
+            hue=hue,
+            bins=bins,
+        )
+
+        # Additional validation: check columns exist in dataset
+        df = get_dataset(dataset_id)
+        available_columns = df.columns.tolist()
+
+        spec.x = validate_column_exists(spec.x, available_columns)
+        if spec.y:
+            spec.y = validate_column_exists(spec.y, available_columns)
+        if spec.hue:
+            spec.hue = validate_column_exists(spec.hue, available_columns)
+
+        # Return as dict for tool compatibility
+        return wrap_success(spec.model_dump())
+
+    except Exception as e:
+        return exception_to_error(
+            "validation_error",
+            e,
+            hint="Check chart_type and column names exist in dataset",
+        )
 
 
-def eda_render_plot_tool(spec: Dict[str, Any]) -> str:
+async def eda_render_plot_tool(tool_context: ToolContext, spec: Dict[str, Any]) -> Any:
     """
-    Tool wrapper to render a plot from a visualization specification
-    and return a file path to the generated image.
+    Tool wrapper to render a plot from a visualization specification.
+    Validates the spec using Pydantic before rendering and returns an ADK Part
+    object that the web UI can display as an artifact.
+
+    Returns:
+        Part: ADK media Part object containing the image data for display in the web UI
     """
-    return render_plot_from_spec(spec)
+    try:
+        # Validate spec using Pydantic
+        validated_spec = VizSpec(**spec)
+
+        # Render the plot
+        result = render_plot_from_spec(validated_spec.model_dump())
+
+        # Validate result
+        validated_result = VizResult(**result)
+
+        # Read the image file and create an ADK Part for artifact display
+        file_path = validated_result.file_path
+        filename = os.path.basename(file_path)
+
+        # Read the file as binary data
+        with open(file_path, "rb") as f:
+            image_data = f.read()
+
+        # Create a Part object with the image
+        image_part = types.Part.from_bytes(
+            data=image_data,
+            mime_type="image/png",
+        )
+
+        # Persist the artifact so it shows up in the Dev UI Artifacts panel
+        try:
+            version = await tool_context.save_artifact(
+                filename=filename, artifact=image_part
+            )
+        except Exception:
+            # If saving fails, still return the Part for best-effort display
+            return image_part
+
+        # Return lightweight metadata for the LLM to reference
+        return wrap_success(
+            {
+                "artifact_filename": filename,
+                "artifact_version": version,
+                "mime_type": "image/png",
+                "message": "Visualization saved as artifact",
+                "chart_type": validated_result.chart_type.value,
+                "dataset_id": validated_result.dataset_id,
+            }
+        )
+
+    except Exception as e:
+        return exception_to_error(
+            "render_error",
+            e,
+            hint="Verify columns are numeric/categorical as required for the chosen chart type",
+        )
