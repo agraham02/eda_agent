@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from ..utils.data_store import get_dataset
+from ..utils.dataset_cache import get_dataset_cached as get_dataset
+from ..utils.parsing import parse_columns_csv
 from ..utils.schemas import (
     BivariateSummaryResult,
     CorrelationMatrixResult,
@@ -242,9 +243,13 @@ def build_correlation_matrix(
 # TOOL WRAPPERS
 # -----------------------------
 def eda_univariate_summary_tool(
-    dataset_id: str,
-    columns: Optional[List[str]] = None,
+    dataset_id: str, columns_csv: str = ""
 ) -> Dict[str, Any]:
+    """Tool wrapper for univariate summary.
+
+    columns_csv: Comma-separated column names. Leave empty to summarize all columns.
+    """
+    columns = parse_columns_csv(columns_csv)
     return build_univariate_summary(dataset_id, columns).model_dump()
 
 
@@ -258,7 +263,11 @@ def eda_bivariate_summary_tool(
 
 
 def eda_correlation_matrix_tool(
-    dataset_id: str,
-    columns: Optional[List[str]] = None,
+    dataset_id: str, columns_csv: str = ""
 ) -> Dict[str, Any]:
+    """Tool wrapper for correlation matrix.
+
+    columns_csv: Comma-separated column names. Leave empty to use all columns.
+    """
+    columns = parse_columns_csv(columns_csv)
     return build_correlation_matrix(dataset_id, columns).model_dump()
