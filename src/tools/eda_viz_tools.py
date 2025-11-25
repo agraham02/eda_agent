@@ -1,18 +1,76 @@
+import json
 import os
 import uuid
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
-from ..utils.data_store import get_dataset
+from ..utils.dataset_cache import get_dataset_cached as get_dataset
 from ..utils.errors import exception_to_error, wrap_success
 from ..utils.schemas import ChartType, VizResult, VizSpec, validate_column_exists
 
 PLOTS_DIR = "/tmp/data_whisperer_plots"
 os.makedirs(PLOTS_DIR, exist_ok=True)
+
+# Simple in-memory cache to prevent duplicate plot generation within a session.
+# Keyed by (dataset_id, chart_type, x, y, hue, bins)
+# Value: file_path string for the previously rendered plot.
+_PLOT_CACHE: Dict[
+    Tuple[str, str, Optional[str], Optional[str], Optional[str], int], str
+] = {}
+_PLOT_CACHE_FILE = os.path.join(PLOTS_DIR, "plot_cache.json")
+
+
+def _load_plot_cache() -> None:
+    if os.path.isfile(_PLOT_CACHE_FILE):
+        try:
+            with open(_PLOT_CACHE_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            # Keys were stored as joined strings; rehydrate tuple
+            for k, v in raw.items():
+                parts = k.split("|||")
+                dataset_id, chart_type, x, y, hue, bins_str = parts
+                key = (
+                    dataset_id,
+                    chart_type,
+                    x or None,
+                    y or None,
+                    hue or None,
+                    int(bins_str),
+                )
+                _PLOT_CACHE[key] = v
+        except Exception:
+            # Corrupt cache; ignore
+            pass
+
+
+def _save_plot_cache() -> None:
+    try:
+        serializable: Dict[str, str] = {}
+        for key, path in _PLOT_CACHE.items():
+            dataset_id, chart_type, x, y, hue, bins = key
+            serial_key = "|||".join(
+                [
+                    dataset_id,
+                    chart_type,
+                    x or "",
+                    y or "",
+                    hue or "",
+                    str(bins),
+                ]
+            )
+            serializable[serial_key] = path
+        with open(_PLOT_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(serializable, f, indent=2)
+    except Exception:
+        # Fail silently; caching is auxiliary
+        pass
+
+
+_load_plot_cache()
 
 
 def _chart_role(chart_type: str) -> str:
@@ -52,6 +110,22 @@ def render_plot_from_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
     y = spec.get("y")
     hue = spec.get("hue")
     bins = spec.get("bins", 10)
+
+    cache_key = (dataset_id, chart_type, x, y, hue, bins)
+
+    # If we have already rendered this exact specification, reuse the file.
+    if cache_key in _PLOT_CACHE:
+        existing_path = _PLOT_CACHE[cache_key]
+        if os.path.isfile(existing_path):
+            return {
+                "file_path": existing_path,
+                "chart_type": chart_type,
+                "dataset_id": dataset_id,
+                "reused": True,
+                "message": "Duplicate visualization spec detected; reused previously rendered plot.",
+            }
+        # Stale cache entry (file removed); drop and regenerate
+        _PLOT_CACHE.pop(cache_key, None)
 
     try:
         df = get_dataset(dataset_id)
@@ -145,10 +219,16 @@ def render_plot_from_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
     fig.savefig(file_path)
     plt.close(fig)
 
+    # Store in cache
+    _PLOT_CACHE[cache_key] = file_path
+    _save_plot_cache()
+
     return {
         "file_path": file_path,
         "chart_type": chart_type,
         "dataset_id": dataset_id,
+        "reused": False,
+        "message": "Visualization rendered successfully.",
     }
 
 
@@ -222,10 +302,28 @@ async def eda_render_plot_tool(tool_context: ToolContext, spec: Dict[str, Any]) 
         # Validate spec using Pydantic
         validated_spec = VizSpec(**spec)
 
-        # Render the plot
+        # Render the plot (will reuse cached version if spec repeats)
         result = render_plot_from_spec(validated_spec.model_dump())
 
-        # Validate result
+        # If this spec was already rendered, avoid re-saving the same artifact.
+        if result.get("reused"):
+            validated_result = VizResult(**result)
+            return wrap_success(
+                {
+                    "artifact_filename": os.path.basename(validated_result.file_path),
+                    "artifact_version": None,  # Not re-saved to avoid duplicate chart spam
+                    "mime_type": "image/png",
+                    "message": result.get(
+                        "message",
+                        "Reused previously rendered visualization (not re-saved)",
+                    ),
+                    "chart_type": validated_result.chart_type.value,
+                    "dataset_id": validated_result.dataset_id,
+                    "reused": True,
+                }
+            )
+
+        # Validate result (new render)
         validated_result = VizResult(**result)
 
         # Read the image file and create an ADK Part for artifact display
@@ -257,9 +355,10 @@ async def eda_render_plot_tool(tool_context: ToolContext, spec: Dict[str, Any]) 
                 "artifact_filename": filename,
                 "artifact_version": version,
                 "mime_type": "image/png",
-                "message": "Visualization saved as artifact",
+                "message": result.get("message", "Visualization saved as artifact"),
                 "chart_type": validated_result.chart_type.value,
                 "dataset_id": validated_result.dataset_id,
+                "reused": result.get("reused", False),
             }
         )
 
