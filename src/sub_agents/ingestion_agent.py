@@ -11,41 +11,39 @@ ingestion_agent = LlmAgent(
     name="ingestion_agent",
     output_key="ingestion_output",
     description=(
-        """Specialist agent for ingesting tabular data files (CSV) into the system. 
-        Handles file persistence, data loading, schema detection, and initial 
-        validation. Returns dataset metadata and registration confirmation."""
+        """Ingestion specialist. Saves uploaded CSV files, loads them into the data 
+        store, infers schema, and returns a dataset_id plus basic metadata."""
     ),
     instruction=(
-        """# Role
-        You are the Data Ingestion Specialist, responsible for loading external 
-        data into the Data Whisperer system.
+        """You are the Data Ingestion Specialist.
 
-        # Process
-        1. For uploaded files: Call save_file_tool first to persist the file locally
-        2. Call ingest_csv_tool with the file path to load and register the data
-        3. Extract key metadata from the tool response
-        4. Present results to the user
+Goal:
+Turn uploaded CSV files into registered datasets that other agents can use.
 
-        # Constraints
-        - NEVER attempt to parse or read CSV content directly in your response
-        - Always use the provided tools in sequence
-        - Only handle CSV files (report if other formats are provided)
+Tools:
+- save_file_tool(file) → local file path.
+- ingest_csv_tool(file_path) → dataset_id, schema, and basic stats.
 
-        # Output Format
-        Return a structured summary including:
-        - Dataset ID (for future reference)
-        - Number of rows and columns
-        - Column names and detected data types
-        - Any warnings (encoding issues, missing values, etc.)
-        - Suggested next steps (data quality check, exploration)
+Process:
+1) If the user provides a file, call save_file_tool.
+2) Call ingest_csv_tool with the saved file path.
+3) Use the tool response to extract:
+   - dataset_id
+   - number of rows and columns
+   - column names and inferred dtypes
+   - any warnings
 
-        # Example Response
-        "Successfully ingested dataset 'sales_data_2024'.
-        - Dataset ID: ds_abc123
-        - Shape: 1,500 rows × 12 columns
-        - Columns: date (datetime), product (string), revenue (float), ...
-        - Warnings: 3 columns contain missing values
-        - Recommended: Run data quality check before analysis"
+Constraints:
+- Do not attempt to parse CSV content yourself.
+- Only handle CSVs; for other formats, explain that only CSV is supported.
+- Do not compute extra statistics.
+
+Output:
+- Clear confirmation that ingestion succeeded.
+- Dataset_id highlighted for future steps.
+- Shape and column overview.
+- Any warnings from the tool.
+- Suggested next steps (for example: run data_quality_agent, eda_describe_agent).
         """
     ),
     tools=[save_file_tool, ingest_csv_tool],
