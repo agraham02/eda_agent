@@ -39,19 +39,21 @@ def run_one_sample_test(
         return {
             "error": str(e),
             "dataset_id": dataset_id,
-            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool."
+            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool.",
         }
 
     if column not in df.columns:
-        raise ValueError(f"Column '{column}' not found in dataset")
+        raise ValueError(
+            f"Column '{column}' not found in dataset. Available columns: {list(df.columns)}"
+        )
 
-    series = df[column].dropna()
-    if not pd.api.types.is_numeric_dtype(series):
+    x = df[column].dropna()
+    if not pd.api.types.is_numeric_dtype(x):
         raise ValueError("One-sample tests require a numeric column")
 
-    n = len(series)
-    sample_mean = float(series.mean())
-    sample_std = float(series.std(ddof=1))
+    n = len(x)
+    sample_mean = float(x.mean())
+    sample_std = float(x.std(ddof=1))
     se = sample_std / np.sqrt(n)
 
     alternative = alternative.lower()
@@ -62,7 +64,7 @@ def run_one_sample_test(
 
     # --- t test (preferred when sigma unknown, matches your notes)
     if test_type == "t":
-        result = stats.ttest_1samp(series, popmean=mu)
+        result = stats.ttest_1samp(x, popmean=mu)
         t_stat = float(result.statistic)  # type: ignore[attr-defined]
         p_two = float(result.pvalue)  # type: ignore[attr-defined]
 
@@ -172,13 +174,17 @@ def run_two_sample_test(
         return {
             "error": str(e),
             "dataset_id": dataset_id,
-            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool."
+            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool.",
         }
 
     if column not in df.columns:
-        raise ValueError(f"Column '{column}' not found in dataset")
+        raise ValueError(
+            f"Column '{column}' not found in dataset. Available columns: {list(df.columns)}"
+        )
     if group_col not in df.columns:
-        raise ValueError(f"group_col '{group_col}' not found in dataset")
+        raise ValueError(
+            f"group_col '{group_col}' not found in dataset. Available columns: {list(df.columns)}"
+        )
 
     # filter two groups
     df_ab = df[df[group_col].isin([group_a, group_b])]
@@ -390,11 +396,13 @@ def build_clt_sampling_summary(
         return {
             "error": str(e),
             "dataset_id": dataset_id,
-            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool."
+            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool.",
         }
 
     if column not in df.columns:
-        raise ValueError(f"Column '{column}' not found in dataset")
+        raise ValueError(
+            f"Column '{column}' not found in dataset. Available columns: {list(df.columns)}"
+        )
 
     series = df[column].dropna()
 
