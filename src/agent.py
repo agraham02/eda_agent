@@ -9,6 +9,7 @@ from .sub_agents.eda_viz_agent import eda_viz_agent
 from .sub_agents.ingestion_agent import ingestion_agent
 from .sub_agents.summary_agent import summary_agent
 from .sub_agents.wrangle_agent import wrangle_agent
+from .sub_agents.quality_wrangle_loop_agent import quality_improvement_loop_agent
 from .utils.consts import retry_config
 
 root_agent = LlmAgent(
@@ -72,5 +73,6 @@ Your role is coordination and state management, not doing analysis.
         AgentTool(agent=eda_inference_agent),
         AgentTool(agent=eda_viz_agent),
         AgentTool(agent=summary_agent),
+        AgentTool(agent=quality_improvement_loop_agent),
     ],
 )
