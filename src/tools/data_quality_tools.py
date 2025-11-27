@@ -14,6 +14,98 @@ from ..utils.schemas import (
 )
 
 
+def compute_readiness_score(
+    n_rows: int,
+    duplicate_pct: float,
+    columns: List[DataQualityColumn],
+) -> Dict[str, Any]:
+    """Compute a simple readiness score (0-100) with component breakdown.
+
+    Heuristic components (each starts at 100 then penalized):
+      - missingness: average column missing pct weighted by columns
+      - duplicates: penalty proportional to duplicate pct
+      - constants: proportion of constant columns
+      - high_missing_columns: proportion of columns with >40% missing
+      - outliers: aggregate outlier density across numeric columns
+
+    Overall score: mean of component scores (clamped 0-100).
+    """
+
+    if n_rows <= 0:
+        return {
+            "overall": 0,
+            "components": {},
+            "notes": ["Empty dataset"],
+        }
+
+    total_cols = len(columns) or 1
+    missing_avgs: List[float] = []
+    constant_flags = 0
+    high_missing_flags = 0
+    outlier_counts = 0
+    numeric_value_counts = 0
+
+    for col in columns:
+        missing_avgs.append(col.missing_pct)
+        if col.is_constant:
+            constant_flags += 1
+        if col.missing_pct > 0.4:
+            high_missing_flags += 1
+        if col.numeric_summary is not None:
+            outlier_counts += col.numeric_summary.outlier_count
+            numeric_value_counts += (
+                col.numeric_summary.outlier_count + 1
+            )  # avoid zero division later
+
+    avg_missing = sum(missing_avgs) / len(missing_avgs) if missing_avgs else 0.0
+    missing_score = max(
+        0, 100 - (avg_missing * 100 * 1.2)
+    )  # 20% extra penalty multiplier
+
+    duplicate_score = max(0, 100 - (duplicate_pct * 100 * 1.5))  # heavier penalty
+
+    constant_ratio = constant_flags / total_cols
+    constant_score = max(0, 100 - (constant_ratio * 100 * 2.0))
+
+    high_missing_ratio = high_missing_flags / total_cols
+    high_missing_score = max(0, 100 - (high_missing_ratio * 100 * 2.5))
+
+    if numeric_value_counts > 0:
+        outlier_density = outlier_counts / numeric_value_counts
+    else:
+        outlier_density = 0.0
+    # treat higher density as worse; mild penalty
+    outlier_score = max(0, 100 - (outlier_density * 100 * 0.8))
+
+    components = {
+        "missingness": round(missing_score, 2),
+        "duplicates": round(duplicate_score, 2),
+        "constants": round(constant_score, 2),
+        "high_missing_columns": round(high_missing_score, 2),
+        "outliers": round(outlier_score, 2),
+    }
+    overall = max(0, min(100, round(sum(components.values()) / len(components), 2)))
+
+    notes: List[str] = []
+    if avg_missing > 0.3:
+        notes.append("High average missingness; consider aggressive cleaning.")
+    if duplicate_pct > 0.05:
+        notes.append("Notable duplicate rows present.")
+    if constant_ratio > 0.1:
+        notes.append("Several constant columns provide no variance.")
+    if high_missing_ratio > 0.2:
+        notes.append("Multiple columns with >40% missing values.")
+    if outlier_density > 0.15:
+        notes.append("High outlier density in numeric columns.")
+
+    readiness = {
+        "overall": overall,
+        "components": components,
+        "notes": notes,
+    }
+    return readiness
+
+
 def _numeric_summary(series: pd.Series) -> Optional[NumericSummary]:
     if not pd.api.types.is_numeric_dtype(series.dtype):
         return None
@@ -118,6 +210,10 @@ def data_quality_tool(dataset_id: str) -> Dict[str, Any]:
             )
         )
 
+    readiness_score = compute_readiness_score(
+        n_rows=n_rows, duplicate_pct=duplicate_pct, columns=column_models
+    )
+
     result_model = DataQualityResult(
         dataset_id=dataset_id,
         n_rows=n_rows,
@@ -125,5 +221,6 @@ def data_quality_tool(dataset_id: str) -> Dict[str, Any]:
         duplicate_rows={"count": duplicate_count, "pct": duplicate_pct},
         columns=column_models,
         dataset_issues=dataset_issues,
+        readiness_score=readiness_score,
     )
     return wrap_success(result_model.model_dump())

@@ -294,8 +294,7 @@ class DataQualityResult(BaseModel):
     duplicate_rows: Dict[str, Any]
     columns: List[DataQualityColumn]
     dataset_issues: List[str] = []
-
-    # Backward compatibility helpers removed; use model_dump() directly.
+    readiness_score: Optional[Dict[str, Any]] = None  # Overall + component breakdown
 
 
 # ============================================================================

@@ -47,10 +47,22 @@ Constraints:
 - Mention concrete column names when giving advice.
 - Use simple language when explaining concepts like MCAR/MAR/MNAR.
 
+Readiness Score:
+- The tool now returns `readiness_score` with fields:
+    - overall (0–100)
+    - components (missingness, duplicates, constants, high_missing_columns, outliers)
+    - notes (contextual flags)
+Interpret it using bands:
+    - 90–100: Ready
+    - 75–89: Minor fixes
+    - 50–74: Needs work
+    - <50: Not ready
+
 Output:
-- Overall assessment.
-- Bullet list for missing data, duplicates, outliers, and column issues.
-- Prioritized remediation recommendations.
+- Overall assessment and readiness interpretation.
+- Bullet list for missing data, duplicates, outliers, constant/ID-like columns.
+- Readiness breakdown (components with short commentary).
+- Prioritized remediation recommendations (highest impact first).
         """
     ),
     tools=[data_quality_tool],
