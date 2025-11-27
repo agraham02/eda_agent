@@ -1,5 +1,6 @@
 # wrangle_tools.py
 
+import re
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -18,6 +19,7 @@ def apply_row_filter(
 
     The condition should be a pandas query string, for example:
       "age > 30 and country == 'US'"
+      "`Life expectancy` > 70"
 
     Returns metadata and a new dataset_id for the filtered frame.
     """
@@ -31,9 +33,23 @@ def apply_row_filter(
             context={"dataset_id": dataset_id},
         )
 
+    # Normalize condition: convert df['column'] or df["column"] to `column`
+    # This handles cases where the agent generates Python-style indexing
+    normalized_condition = condition
+
+    # Pattern: df['column_name'] or df["column_name"]
+    pattern = r"df\[(['\"])([^'\"]+)\1\]"
+
+    def replace_with_backticks(match):
+        col_name = match.group(2)
+        # Use backticks for query() syntax
+        return f"`{col_name}`"
+
+    normalized_condition = re.sub(pattern, replace_with_backticks, normalized_condition)
+
     try:
         # Use pandas query syntax for safety and familiarity.
-        filtered = df.query(condition)
+        filtered = df.query(normalized_condition)
     except Exception as e:
         raise ValueError(f"Invalid filter condition '{condition}': {e}")
 
