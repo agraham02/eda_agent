@@ -160,6 +160,20 @@ class VizResult(BaseModel):
     file_path: str = Field(..., description="Path to generated plot image")
     chart_type: ChartType = Field(..., description="Type of chart created")
     dataset_id: str = Field(..., description="Source dataset identifier")
+    reused: bool = Field(
+        default=False, description="Whether plot was reused from cache"
+    )
+    message: Optional[str] = Field(None, description="Status message")
+
+    # Spec metadata (all optional for backward compatibility)
+    x: Optional[str] = Field(None, description="Column name for x-axis")
+    y: Optional[str] = Field(None, description="Column name for y-axis")
+    hue: Optional[str] = Field(None, description="Column name for color grouping")
+    bins: Optional[int] = Field(None, description="Number of bins for histograms")
+    role: Optional[str] = Field(
+        None,
+        description="Visual role: distribution, relationship, comparison, composition, unknown",
+    )
 
 
 # ============================================================================

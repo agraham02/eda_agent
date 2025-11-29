@@ -121,6 +121,11 @@ def render_plot_from_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
                 "file_path": existing_path,
                 "chart_type": chart_type,
                 "dataset_id": dataset_id,
+                "x": x,
+                "y": y,
+                "hue": hue,
+                "bins": bins,
+                "role": _chart_role(chart_type),
                 "reused": True,
                 "message": "Duplicate visualization spec detected; reused previously rendered plot.",
             }
@@ -227,6 +232,11 @@ def render_plot_from_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
         "file_path": file_path,
         "chart_type": chart_type,
         "dataset_id": dataset_id,
+        "x": x,
+        "y": y,
+        "hue": hue,
+        "bins": bins,
+        "role": _chart_role(chart_type),
         "reused": False,
         "message": "Visualization rendered successfully.",
     }
@@ -278,8 +288,17 @@ def eda_viz_spec_tool(
         if spec.hue:
             spec.hue = validate_column_exists(spec.hue, available_columns)
 
+        # Add role based on chart type
+        spec_dict = spec.model_dump()
+        chart_type_value = (
+            spec_dict["chart_type"].value
+            if hasattr(spec_dict["chart_type"], "value")
+            else spec_dict["chart_type"]
+        )
+        spec_dict["role"] = _chart_role(chart_type_value)
+
         # Return as dict for tool compatibility
-        return wrap_success(spec.model_dump())
+        return wrap_success(spec_dict)
 
     except Exception as e:
         return exception_to_error(
@@ -317,8 +336,13 @@ async def eda_render_plot_tool(tool_context: ToolContext, spec: Dict[str, Any]) 
                         "message",
                         "Reused previously rendered visualization (not re-saved)",
                     ),
-                    "chart_type": validated_result.chart_type.value,
                     "dataset_id": validated_result.dataset_id,
+                    "chart_type": validated_result.chart_type.value,
+                    "x": validated_result.x,
+                    "y": validated_result.y,
+                    "hue": validated_result.hue,
+                    "bins": validated_result.bins,
+                    "role": validated_result.role,
                     "reused": True,
                 }
             )
@@ -356,8 +380,13 @@ async def eda_render_plot_tool(tool_context: ToolContext, spec: Dict[str, Any]) 
                 "artifact_version": version,
                 "mime_type": "image/png",
                 "message": result.get("message", "Visualization saved as artifact"),
-                "chart_type": validated_result.chart_type.value,
                 "dataset_id": validated_result.dataset_id,
+                "chart_type": validated_result.chart_type.value,
+                "x": validated_result.x,
+                "y": validated_result.y,
+                "hue": validated_result.hue,
+                "bins": validated_result.bins,
+                "role": validated_result.role,
                 "reused": result.get("reused", False),
             }
         )

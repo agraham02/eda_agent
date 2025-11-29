@@ -74,10 +74,10 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 **Estimated effort:** 1 hour  
 **Files to modify:** `src/tools/*.py`, `src/utils/*.py`
 
--   [ ] Replace hardcoded `/tmp` with `tempfile.gettempdir()`
--   [ ] Create utility wrapper: `src/utils/paths.py` with `get_temp_dir()`, `get_artifact_path()`
--   [ ] Update all tools to use path utilities
--   [ ] Test on Windows and Unix-like systems
+-   [x] Replace hardcoded `/tmp` with `tempfile.gettempdir()`
+-   [x] Create utility wrapper: `src/utils/paths.py` with `get_temp_dir()`, `get_artifact_path()`
+-   [x] Update all tools to use path utilities
+-   [x] Test on Windows and Unix-like systems
 
 **Acceptance criteria:**
 
@@ -110,8 +110,8 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 **Estimated effort:** 2 hours  
 **Files to modify:** `src/sub_agents/summary_agent.py`, `src/tools/summary_tools.py`
 
--   [ ] Extend summary agent instructions to include "Readiness Score" section
--   [ ] Template structure:
+-   [x] Extend summary agent instructions to include "Readiness Score" section
+-   [x] Template structure:
 
     ```
     ## Model Readiness Assessment
@@ -126,7 +126,7 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
     - [Priority] Action needed before modeling
     ```
 
--   [ ] Pull readiness data from `data_quality_output` state
+-   [x] Pull readiness data from `data_quality_output` state
 -   [ ] Include plot artifact references with brief interpretations
 
 **Acceptance criteria:**

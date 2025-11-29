@@ -5,6 +5,7 @@ import pandas as pd
 from scipy import stats
 
 from ..utils.data_store import get_dataset
+from ..utils.errors import exception_to_error, wrap_success
 
 
 def _decide_reject(p_value: float, alpha: float) -> bool:
@@ -93,6 +94,7 @@ def run_one_sample_test(
         ci_high = sample_mean + t_crit * se
 
         return {
+            "test_family": "one_sample",
             "test_type": "one_sample_t",
             "dataset_id": dataset_id,
             "column": column,
@@ -100,6 +102,7 @@ def run_one_sample_test(
             "sample_mean": sample_mean,
             "sample_std": sample_std,
             "hypothesized_mean": mu,
+            "target": f"mean({column})",
             "statistic": float(t_stat),
             "df": int(dfree),
             "standard_error": float(se),
@@ -108,6 +111,7 @@ def run_one_sample_test(
             "reject_null": _decide_reject(p_val, alpha),
             "confidence_level": ci_level,
             "confidence_interval": [float(ci_low), float(ci_high)],
+            "effect_size": None,
             "alternative": alternative,
         }
 
@@ -128,6 +132,7 @@ def run_one_sample_test(
     ci_high = sample_mean + z_crit * se
 
     return {
+        "test_family": "one_sample",
         "test_type": "one_sample_z",
         "dataset_id": dataset_id,
         "column": column,
@@ -135,6 +140,7 @@ def run_one_sample_test(
         "sample_mean": sample_mean,
         "sample_std": sample_std,
         "hypothesized_mean": mu,
+        "target": f"mean({column})",
         "statistic": float(z_stat),
         "standard_error": float(se),
         "p_value": p_val,
@@ -142,6 +148,7 @@ def run_one_sample_test(
         "reject_null": _decide_reject(p_val, alpha),
         "confidence_level": ci_level,
         "confidence_interval": [float(ci_low), float(ci_high)],
+        "effect_size": None,
         "alternative": alternative,
     }
 
@@ -255,6 +262,7 @@ def run_two_sample_test(
         ci_high = diff + t_crit * se_diff
 
         return {
+            "test_family": "two_sample",
             "test_type": "two_sample_t",
             "dataset_id": dataset_id,
             "column": column,
@@ -268,15 +276,17 @@ def run_two_sample_test(
             "std_a": std_a,
             "std_b": std_b,
             "mean_diff": diff,
+            "target": f"mean({group_a}) - mean({group_b}) on {column}",
             "statistic": float(t_stat),
             "df": float(dfree),
             "standard_error_diff": float(se_diff),
-            "cohen_d": float(cohen_d),
             "p_value": p_val,
             "alpha": alpha,
             "reject_null": _decide_reject(p_val, alpha),
             "confidence_level": ci_level,
-            "confidence_interval_diff": [float(ci_low), float(ci_high)],
+            "confidence_interval": [float(ci_low), float(ci_high)],
+            "effect_size": float(cohen_d),
+            "cohen_d": float(cohen_d),
             "alternative": alternative,
         }
 
@@ -299,6 +309,7 @@ def run_two_sample_test(
     ci_high = diff + z_crit * se_diff
 
     return {
+        "test_family": "two_sample",
         "test_type": "two_sample_z",
         "dataset_id": dataset_id,
         "column": column,
@@ -312,14 +323,16 @@ def run_two_sample_test(
         "std_a": std_a,
         "std_b": std_b,
         "mean_diff": diff,
+        "target": f"mean({group_a}) - mean({group_b}) on {column}",
         "statistic": float(z_stat),
         "standard_error_diff": float(se_diff),
-        "cohen_d": float(cohen_d),
         "p_value": p_val,
         "alpha": alpha,
         "reject_null": _decide_reject(p_val, alpha),
         "confidence_level": ci_level,
-        "confidence_interval_diff": [float(ci_low), float(ci_high)],
+        "confidence_interval": [float(ci_low), float(ci_high)],
+        "effect_size": float(cohen_d),
+        "cohen_d": float(cohen_d),
         "alternative": alternative,
     }
 
@@ -361,17 +374,20 @@ def run_binomial_test(
     ci_high = float(ci.high)
 
     return {
+        "test_family": "binomial",
         "test_type": "binomial",
         "successes": successes,
         "n": n,
         "observed_proportion": successes / n,
         "hypothesized_proportion": p0,
-        "statistic": None,  # binomial test is exact, primary quantity is p_value
+        "target": "proportion",
+        "statistic": None,
         "p_value": p_val,
         "alpha": alpha,
         "reject_null": _decide_reject(p_val, alpha),
         "confidence_level": ci_level,
-        "confidence_interval_proportion": [ci_low, ci_high],
+        "confidence_interval": [ci_low, ci_high],
+        "effect_size": None,
         "alternative": alternative,
     }
 
@@ -437,8 +453,17 @@ def build_clt_sampling_summary(
     percentiles = [float(x) for x in percentiles]
 
     return {
+        "test_family": "clt_sampling",
+        "test_type": "clt_sampling_demo",
         "dataset_id": dataset_id,
         "column": column,
+        "target": f"sampling distribution of mean({column})",
+        "statistic": None,
+        "p_value": None,
+        "alpha": None,
+        "reject_null": None,
+        "confidence_interval": None,
+        "effect_size": None,
         "population_estimate": {
             "mean": pop_mean_est,
             "std": pop_std_est,
@@ -460,7 +485,6 @@ def build_clt_sampling_summary(
                 "97.5": percentiles[4],
             },
         },
-        # Optionally expose a thin version of sample_means if you want viz later
         "sample_means_preview": sample_means[:50].tolist(),
     }
 
@@ -479,14 +503,22 @@ def eda_one_sample_test_tool(
     """
     Tool wrapper to run a one-sample hypothesis test on a column.
     """
-    return run_one_sample_test(
-        dataset_id=dataset_id,
-        column=column,
-        test_type=test_type,
-        mu=mu,
-        alternative=alternative,
-        alpha=alpha,
-    )
+    try:
+        result = run_one_sample_test(
+            dataset_id=dataset_id,
+            column=column,
+            test_type=test_type,
+            mu=mu,
+            alternative=alternative,
+            alpha=alpha,
+        )
+        return wrap_success(result)
+    except Exception as e:
+        return exception_to_error(
+            "inference_error",
+            e,
+            hint="Check dataset_id, column name, and that the column is numeric",
+        )
 
 
 def eda_two_sample_test_tool(
@@ -503,16 +535,24 @@ def eda_two_sample_test_tool(
     Tool wrapper to run a two-sample hypothesis test comparing
     two groups in the dataset.
     """
-    return run_two_sample_test(
-        dataset_id=dataset_id,
-        column=column,
-        group_col=group_col,
-        group_a=group_a,
-        group_b=group_b,
-        test_type=test_type,
-        alternative=alternative,
-        alpha=alpha,
-    )
+    try:
+        result = run_two_sample_test(
+            dataset_id=dataset_id,
+            column=column,
+            group_col=group_col,
+            group_a=group_a,
+            group_b=group_b,
+            test_type=test_type,
+            alternative=alternative,
+            alpha=alpha,
+        )
+        return wrap_success(result)
+    except Exception as e:
+        return exception_to_error(
+            "inference_error",
+            e,
+            hint="Check dataset_id, column names, group column, and group values exist",
+        )
 
 
 def eda_binomial_test_tool(
@@ -525,13 +565,21 @@ def eda_binomial_test_tool(
     """
     Tool wrapper to run a binomial hypothesis test for proportion data.
     """
-    return run_binomial_test(
-        successes=successes,
-        n=n,
-        p0=p0,
-        alternative=alternative,
-        alpha=alpha,
-    )
+    try:
+        result = run_binomial_test(
+            successes=successes,
+            n=n,
+            p0=p0,
+            alternative=alternative,
+            alpha=alpha,
+        )
+        return wrap_success(result)
+    except Exception as e:
+        return exception_to_error(
+            "inference_error",
+            e,
+            hint="Check that successes <= n, n > 0, and 0 < p0 < 1",
+        )
 
 
 def eda_clt_sampling_tool(
@@ -544,9 +592,17 @@ def eda_clt_sampling_tool(
     Tool wrapper to generate a sampling distribution of the mean
     and summarize CLT behavior for a numeric column.
     """
-    return build_clt_sampling_summary(
-        dataset_id=dataset_id,
-        column=column,
-        sample_size=sample_size,
-        n_samples=n_samples,
-    )
+    try:
+        result = build_clt_sampling_summary(
+            dataset_id=dataset_id,
+            column=column,
+            sample_size=sample_size,
+            n_samples=n_samples,
+        )
+        return wrap_success(result)
+    except Exception as e:
+        return exception_to_error(
+            "inference_error",
+            e,
+            hint="Check dataset_id, column name, column is numeric, sample_size and n_samples are positive",
+        )
