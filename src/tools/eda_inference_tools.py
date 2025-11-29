@@ -5,7 +5,13 @@ import pandas as pd
 from scipy import stats
 
 from ..utils.data_store import get_dataset
-from ..utils.errors import exception_to_error, wrap_success
+from ..utils.errors import (
+    DATASET_NOT_FOUND,
+    INFERENCE_ERROR,
+    exception_to_error,
+    make_error,
+    wrap_success,
+)
 
 
 def _decide_reject(p_value: float, alpha: float) -> bool:
@@ -37,11 +43,12 @@ def run_one_sample_test(
     try:
         df = get_dataset(dataset_id)
     except KeyError as e:
-        return {
-            "error": str(e),
-            "dataset_id": dataset_id,
-            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool.",
-        }
+        return make_error(
+            DATASET_NOT_FOUND,
+            str(e),
+            hint="Please ingest the dataset first using ingest_csv_tool.",
+            context={"dataset_id": dataset_id},
+        )
 
     if column not in df.columns:
         raise ValueError(
@@ -178,11 +185,12 @@ def run_two_sample_test(
     try:
         df = get_dataset(dataset_id)
     except KeyError as e:
-        return {
-            "error": str(e),
-            "dataset_id": dataset_id,
-            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool.",
-        }
+        return make_error(
+            DATASET_NOT_FOUND,
+            str(e),
+            hint="Please ingest the dataset first using ingest_csv_tool.",
+            context={"dataset_id": dataset_id},
+        )
 
     if column not in df.columns:
         raise ValueError(
@@ -409,11 +417,12 @@ def build_clt_sampling_summary(
     try:
         df = get_dataset(dataset_id)
     except KeyError as e:
-        return {
-            "error": str(e),
-            "dataset_id": dataset_id,
-            "message": "Dataset not found. Please ingest the dataset first using ingest_csv_tool.",
-        }
+        return make_error(
+            DATASET_NOT_FOUND,
+            str(e),
+            hint="Please ingest the dataset first using ingest_csv_tool.",
+            context={"dataset_id": dataset_id},
+        )
 
     if column not in df.columns:
         raise ValueError(
@@ -515,7 +524,7 @@ def eda_one_sample_test_tool(
         return wrap_success(result)
     except Exception as e:
         return exception_to_error(
-            "inference_error",
+            INFERENCE_ERROR,
             e,
             hint="Check dataset_id, column name, and that the column is numeric",
         )
@@ -549,7 +558,7 @@ def eda_two_sample_test_tool(
         return wrap_success(result)
     except Exception as e:
         return exception_to_error(
-            "inference_error",
+            INFERENCE_ERROR,
             e,
             hint="Check dataset_id, column names, group column, and group values exist",
         )
@@ -576,7 +585,7 @@ def eda_binomial_test_tool(
         return wrap_success(result)
     except Exception as e:
         return exception_to_error(
-            "inference_error",
+            INFERENCE_ERROR,
             e,
             hint="Check that successes <= n, n > 0, and 0 < p0 < 1",
         )
@@ -602,7 +611,7 @@ def eda_clt_sampling_tool(
         return wrap_success(result)
     except Exception as e:
         return exception_to_error(
-            "inference_error",
+            INFERENCE_ERROR,
             e,
             hint="Check dataset_id, column name, column is numeric, sample_size and n_samples are positive",
         )

@@ -78,6 +78,11 @@ When you respond:
 2) Specify whether you are exiting or which single operation you applied.
 3) Return old dataset_id → new dataset_id and list the operations used.
 4) Suggest what the next iteration should focus on, or confirm completion if you exited.
+
+Error Handling:
+- Tools return ok=true on success or ok=false with error details.
+- Always check the ok field before using results.
+- If ok=false, explain error.message and error.hint clearly to the user.
 """,
     tools=[
         FunctionTool(exit_quality_loop),

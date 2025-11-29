@@ -4,6 +4,13 @@ import numpy as np
 import pandas as pd
 
 from ..utils.dataset_cache import get_dataset_cached as get_dataset
+from ..utils.errors import (
+    COLUMN_NOT_FOUND,
+    DATASET_NOT_FOUND,
+    TYPE_MISMATCH,
+    exception_to_error,
+    wrap_success,
+)
 from ..utils.parsing import parse_columns_csv
 from ..utils.schemas import (
     BivariateSummaryResult,
@@ -249,8 +256,22 @@ def eda_univariate_summary_tool(
 
     columns_csv: Comma-separated column names. Leave empty to summarize all columns.
     """
-    columns = parse_columns_csv(columns_csv)
-    return build_univariate_summary(dataset_id, columns).model_dump()
+    try:
+        columns = parse_columns_csv(columns_csv)
+        result = build_univariate_summary(dataset_id, columns)
+        return wrap_success(result.model_dump())
+    except KeyError as e:
+        return exception_to_error(
+            DATASET_NOT_FOUND,
+            e,
+            hint="Ingest dataset with ingest_csv_tool first",
+        )
+    except (ValueError, TypeError) as e:
+        return exception_to_error(
+            COLUMN_NOT_FOUND,
+            e,
+            hint="Check that column names exist in dataset",
+        )
 
 
 def eda_bivariate_summary_tool(
@@ -259,7 +280,27 @@ def eda_bivariate_summary_tool(
     y: str,
     group_by: Optional[str] = None,
 ) -> Dict[str, Any]:
-    return build_bivariate_summary(dataset_id, x, y, group_by).model_dump()
+    try:
+        result = build_bivariate_summary(dataset_id, x, y, group_by)
+        return wrap_success(result.model_dump())
+    except KeyError as e:
+        return exception_to_error(
+            DATASET_NOT_FOUND,
+            e,
+            hint="Ingest dataset with ingest_csv_tool first",
+        )
+    except ValueError as e:
+        return exception_to_error(
+            COLUMN_NOT_FOUND,
+            e,
+            hint="Check that column names exist in dataset",
+        )
+    except TypeError as e:
+        return exception_to_error(
+            TYPE_MISMATCH,
+            e,
+            hint="Verify column data types are appropriate for bivariate analysis",
+        )
 
 
 def eda_correlation_matrix_tool(
@@ -269,5 +310,19 @@ def eda_correlation_matrix_tool(
 
     columns_csv: Comma-separated column names. Leave empty to use all columns.
     """
-    columns = parse_columns_csv(columns_csv)
-    return build_correlation_matrix(dataset_id, columns).model_dump()
+    try:
+        columns = parse_columns_csv(columns_csv)
+        result = build_correlation_matrix(dataset_id, columns)
+        return wrap_success(result.model_dump())
+    except KeyError as e:
+        return exception_to_error(
+            DATASET_NOT_FOUND,
+            e,
+            hint="Ingest dataset with ingest_csv_tool first",
+        )
+    except (ValueError, TypeError) as e:
+        return exception_to_error(
+            COLUMN_NOT_FOUND,
+            e,
+            hint="Check that column names exist in dataset. Only numeric columns can be correlated.",
+        )

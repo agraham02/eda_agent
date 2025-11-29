@@ -6,7 +6,15 @@ from typing import Any, Dict, List
 import pandas as pd
 
 from ..utils.data_store import get_dataset, register_dataset
-from ..utils.errors import make_error, wrap_success
+from ..utils.errors import (
+    COLUMN_NOT_FOUND,
+    DATASET_NOT_FOUND,
+    EXPRESSION_ERROR,
+    INVALID_PARAMETER,
+    exception_to_error,
+    make_error,
+    wrap_success,
+)
 from ..utils.schemas import FilterResult, MutateResult, SelectResult
 
 
@@ -27,7 +35,7 @@ def apply_row_filter(
         df = get_dataset(dataset_id)
     except KeyError as e:
         return make_error(
-            "dataset_not_found",
+            DATASET_NOT_FOUND,
             str(e),
             hint="Ingest dataset before filtering",
             context={"dataset_id": dataset_id},
@@ -80,7 +88,7 @@ def select_columns(
         df = get_dataset(dataset_id)
     except KeyError as e:
         return make_error(
-            "dataset_not_found",
+            DATASET_NOT_FOUND,
             str(e),
             hint="Ingest dataset before selecting columns",
             context={"dataset_id": dataset_id},
@@ -125,7 +133,7 @@ def mutate_columns(
         df = get_dataset(dataset_id)
     except KeyError as e:
         return make_error(
-            "dataset_not_found",
+            DATASET_NOT_FOUND,
             str(e),
             hint="Ingest dataset before mutating columns",
             context={"dataset_id": dataset_id},
@@ -168,7 +176,20 @@ def wrangle_filter_rows_tool(
 
     Delegates to apply_row_filter and returns its metadata.
     """
-    return apply_row_filter(dataset_id=dataset_id, condition=condition)
+    try:
+        return apply_row_filter(dataset_id=dataset_id, condition=condition)
+    except ValueError as e:
+        return exception_to_error(
+            EXPRESSION_ERROR,
+            e,
+            hint="Check filter condition syntax and column names",
+        )
+    except Exception as e:
+        return exception_to_error(
+            INVALID_PARAMETER,
+            e,
+            hint="Verify dataset_id and condition are valid",
+        )
 
 
 def wrangle_select_columns_tool(
@@ -180,7 +201,20 @@ def wrangle_select_columns_tool(
 
     Delegates to select_columns and returns its metadata.
     """
-    return select_columns(dataset_id=dataset_id, columns=columns)
+    try:
+        return select_columns(dataset_id=dataset_id, columns=columns)
+    except ValueError as e:
+        return exception_to_error(
+            COLUMN_NOT_FOUND,
+            e,
+            hint="Check that all column names exist in the dataset",
+        )
+    except Exception as e:
+        return exception_to_error(
+            INVALID_PARAMETER,
+            e,
+            hint="Verify dataset_id and columns are valid",
+        )
 
 
 def wrangle_mutate_columns_tool(
@@ -192,4 +226,17 @@ def wrangle_mutate_columns_tool(
 
     Delegates to mutate_columns and returns its metadata.
     """
-    return mutate_columns(dataset_id=dataset_id, expressions=expressions)
+    try:
+        return mutate_columns(dataset_id=dataset_id, expressions=expressions)
+    except ValueError as e:
+        return exception_to_error(
+            EXPRESSION_ERROR,
+            e,
+            hint="Check expression syntax and referenced column names",
+        )
+    except Exception as e:
+        return exception_to_error(
+            INVALID_PARAMETER,
+            e,
+            hint="Verify dataset_id and expressions are valid",
+        )

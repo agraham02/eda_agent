@@ -7,6 +7,8 @@ with agents that have no tools returning None for content.parts.
 
 from typing import Any, Dict
 
+from ..utils.errors import VALIDATION_ERROR, make_error, wrap_success
+
 
 def _validate_summary(summary_text: str) -> Dict[str, Any]:
     stripped = summary_text.strip()
@@ -24,12 +26,13 @@ def _validate_summary(summary_text: str) -> Dict[str, Any]:
         if section not in stripped:
             errors.append(f"Missing required section: {section}")
     if errors:
-        return {
-            "success": False,
-            "summary": summary_text,
-            "message": "; " + " ".join(errors),
-        }
-    return {"success": True}
+        return make_error(
+            VALIDATION_ERROR,
+            "; ".join(errors),
+            hint="Ensure all required sections are present in the summary",
+            context={"summary": summary_text},
+        )
+    return wrap_success({})
 
 
 def finalize_summary_tool(summary_text: str) -> Dict[str, Any]:
@@ -46,10 +49,11 @@ def finalize_summary_tool(summary_text: str) -> Dict[str, Any]:
         Dict containing the finalized summary and success status
     """
     validation = _validate_summary(summary_text)
-    if not validation["success"]:
+    if not validation.get("ok", True):
         return validation
-    return {
-        "success": True,
-        "summary": summary_text,
-        "message": "Summary report generated successfully",
-    }
+    return wrap_success(
+        {
+            "summary": summary_text,
+            "message": "Summary report generated successfully",
+        }
+    )

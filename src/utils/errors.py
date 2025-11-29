@@ -12,6 +12,19 @@ inspect the "ok" flag.
 import traceback
 from typing import Any, Dict, Optional
 
+# Error type constants
+DATASET_NOT_FOUND = "dataset_not_found"
+COLUMN_NOT_FOUND = "column_not_found"
+INVALID_PARAMETER = "invalid_parameter"
+TYPE_MISMATCH = "type_mismatch"
+FILE_IO_ERROR = "file_io_error"
+EMPTY_DATA = "empty_data"
+EXPRESSION_ERROR = "expression_error"
+INGESTION_ERROR = "ingestion_error"
+VALIDATION_ERROR = "validation_error"
+RENDER_ERROR = "render_error"
+INFERENCE_ERROR = "inference_error"
+
 
 def make_error(
     error_type: str,

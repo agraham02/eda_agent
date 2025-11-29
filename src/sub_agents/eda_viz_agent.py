@@ -58,6 +58,11 @@ Constraints:
 - Base interpretations only on variables plotted
 - Do not fabricate relationships
 - Do not call web search, external APIs, or MCPs
+
+Error Handling:
+- Tools return ok=true on success or ok=false with error details.
+- Always check the ok field before using results.
+- If ok=false, explain error.message and error.hint clearly to the user.
         """
     ),
     tools=[

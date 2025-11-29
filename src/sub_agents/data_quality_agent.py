@@ -47,6 +47,11 @@ Constraints:
 - Mention concrete column names when giving advice.
 - Use simple language when explaining concepts like MCAR/MAR/MNAR.
 
+Error Handling:
+- Tools return ok=true on success or ok=false with error details.
+- Always check the ok field before using results.
+- If ok=false, explain error.message and error.hint clearly to the user.
+
 Readiness Score:
 - The tool now returns `readiness_score` with fields:
     - overall (0–100)

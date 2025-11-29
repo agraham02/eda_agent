@@ -52,6 +52,11 @@ Output (<60 words):
 - Operation performed.
 - Source → new dataset_id.
 - Row/column changes summary.
+
+Error Handling:
+- Tools return ok=true on success or ok=false with error details.
+- Always check the ok field before using results.
+- If ok=false, explain error.message and error.hint clearly to the user.
     """,
     tools=[
         wrangle_filter_rows_tool,

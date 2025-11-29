@@ -41,6 +41,11 @@ Constraints:
 - Do not parse CSV yourself
 - Do not compute extra statistics
 - Do not call web search, external APIs, or MCPs
+
+Error Handling:
+- Tools return ok=true on success or ok=false with error details.
+- Always check the ok field before using results.
+- If ok=false, explain error.message and error.hint clearly to the user.
         """
     ),
     tools=[save_file_tool, ingest_csv_tool],

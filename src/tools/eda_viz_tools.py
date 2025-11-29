@@ -9,7 +9,12 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from ..utils.dataset_cache import get_dataset_cached as get_dataset
-from ..utils.errors import exception_to_error, wrap_success
+from ..utils.errors import (
+    RENDER_ERROR,
+    VALIDATION_ERROR,
+    exception_to_error,
+    wrap_success,
+)
 from ..utils.paths import get_artifact_path
 from ..utils.schemas import ChartType, VizResult, VizSpec, validate_column_exists
 
@@ -302,7 +307,7 @@ def eda_viz_spec_tool(
 
     except Exception as e:
         return exception_to_error(
-            "validation_error",
+            VALIDATION_ERROR,
             e,
             hint="Check chart_type and column names exist in dataset",
         )
@@ -393,7 +398,7 @@ async def eda_render_plot_tool(tool_context: ToolContext, spec: Dict[str, Any]) 
 
     except Exception as e:
         return exception_to_error(
-            "render_error",
+            RENDER_ERROR,
             e,
             hint="Verify columns are numeric/categorical as required for the chosen chart type",
         )

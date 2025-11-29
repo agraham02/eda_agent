@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 import pandas as pd
 
 from ..utils.data_store import register_dataset
-from ..utils.errors import exception_to_error, wrap_success
+from ..utils.errors import INGESTION_ERROR, exception_to_error, wrap_success
 from ..utils.schemas import ColumnInfo, IngestionResult, SemanticType
 
 
@@ -107,5 +107,5 @@ def ingest_csv_tool(file_path: str) -> Dict[str, Any]:
         return ingest_csv(file_path)
     except Exception as e:
         return exception_to_error(
-            "ingestion_error", e, hint="Ensure file path is accessible and valid CSV"
+            INGESTION_ERROR, e, hint="Ensure file path is accessible and valid CSV"
         )
