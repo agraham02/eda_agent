@@ -1,0 +1,46 @@
+{
+    "eval_set_id": "error_handling_v1",
+    "name": "Error Recovery Tests",
+    "description": "Validates graceful error handling when dataset doesn't exist or invalid operations are requested.",
+    "eval_cases": [
+        {
+            "eval_id": "missing_dataset_recovery",
+            "conversation": [
+                {
+                    "invocation_id": "inv_error_001",
+                    "user_content": {
+                        "parts": [
+                            {
+                                "text": "Check quality of dataset fake_id_12345"
+                            }
+                        ],
+                        "role": "user"
+                    },
+                    "final_response": {
+                        "parts": [
+                            {
+                                "text": "I cannot find a dataset with that ID. Please ingest a dataset first using the ingestion agent."
+                            }
+                        ],
+                        "role": "model"
+                    },
+                    "intermediate_data": {
+                        "tool_uses": [
+                            {
+                                "name": "data_quality_tool",
+                                "args": {
+                                    "dataset_id": "fake_id_12345"
+                                }
+                            }
+                        ],
+                        "intermediate_responses": []
+                    }
+                }
+            ],
+            "session_input": {
+                "app_name": "eda_agent_app",
+                "user_id": "test_user"
+            }
+        }
+    ]
+}

@@ -1,0 +1,21 @@
+# Data Whisperer - EDA Agent Dependencies
+# Hackathon version - loose versioning for faster setup
+
+# Core Data Science
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Google ADK
+google-genai>=1.0.0
+
+# Data Validation
+pydantic>=2.0.0
+
+# Testing (dev)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

@@ -1,0 +1,50 @@
+{
+    "eval_set_id": "demo_workflow_v1",
+    "name": "Demo Workflow - Diabetes Dataset",
+    "description": "Showcases the full EDA pipeline: ingest diabetes.csv, run quality check, generate visualization, and produce summary. This is the golden path for demos.",
+    "eval_cases": [
+        {
+            "eval_id": "diabetes_full_eda",
+            "conversation": [
+                {
+                    "invocation_id": "inv_001",
+                    "user_content": {
+                        "parts": [
+                            {
+                                "text": "Analyze test_data/diabetes.csv"
+                            }
+                        ],
+                        "role": "user"
+                    },
+                    "final_response": {
+                        "parts": [
+                            {
+                                "text": "I'll analyze the diabetes dataset for you."
+                            }
+                        ],
+                        "role": "model"
+                    },
+                    "intermediate_data": {
+                        "tool_uses": [
+                            {
+                                "name": "ingest_csv_tool",
+                                "args": {
+                                    "file_path": "test_data/diabetes.csv"
+                                }
+                            },
+                            {
+                                "name": "data_quality_tool",
+                                "args": {}
+                            }
+                        ],
+                        "intermediate_responses": []
+                    }
+                }
+            ],
+            "session_input": {
+                "app_name": "eda_agent_app",
+                "user_id": "demo_user"
+            }
+        }
+    ]
+}

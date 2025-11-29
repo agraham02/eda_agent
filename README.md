@@ -77,6 +77,39 @@ Each analysis includes:
 -   Identifying data issues early in the ML pipeline
 -   Consistent evaluation across data science teams
 
+## Testing & Evaluation
+
+### Running Tests
+
+```bash
+# Run smoke tests
+pytest tests/ -v -m smoke
+
+# Run all tests including integration
+pytest tests/ -v
+
+# Run ADK evaluations
+adk eval eda_agent tests/eval/
+```
+
+### Interactive Testing with ADK Web UI
+
+Use the ADK Web UI for manual testing and demo preparation:
+
+```bash
+# Start the web interface
+adk web --port 8000
+```
+
+The Web UI provides:
+
+-   Visual trace debugging of agent behavior
+-   Ability to record sessions and export as test files
+-   Side-by-side comparisons of expected vs actual outputs
+-   Tool trajectory visualization
+
+**Tip for Demos:** Record your demo flow in the Web UI, then export it as a `.test.json` file for regression testing.
+
 ## Author
 
 Ahmad Graham | November 2025

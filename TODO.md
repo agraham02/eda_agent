@@ -44,29 +44,28 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 
 ---
 
-### PR #3: Testing Infrastructure (P1)
+### PR #3: Testing Infrastructure (P1) - **HACKATHON VERSION**
 
-**Estimated effort:** 4-6 hours  
+**Estimated effort:** 2-3 hours  
 **Files to create:** `requirements.txt`, `tests/`, `pytest.ini`, `.github/workflows/test.yml`
 
--   [ ] Create `requirements.txt` with pinned versions (pandas, numpy, scipy, seaborn, matplotlib, pydantic, google-adk, pytest)
--   [ ] Create `tests/` directory structure:
-    -   `tests/test_ingestion.py`
-    -   `tests/test_data_quality.py`
-    -   `tests/test_wrangle.py`
-    -   `tests/test_inference.py`
-    -   `tests/test_viz.py`
-    -   `tests/test_readiness_score.py`
--   [ ] Unit tests for readiness scoring thresholds & boundary cases
--   [ ] Property tests: wrangle preserves row order, dataset_id uniqueness
--   [ ] Add pytest configuration
--   [ ] Create GitHub Actions CI workflow (run tests + lint with ruff/black)
+-   [x] Create `requirements.txt` with loose versions (no pinning for faster setup)
+-   [x] Create `tests/` directory structure:
+    -   `tests/conftest.py` - Basic fixtures only
+    -   `tests/test_readiness_score.py` - 4 smoke tests
+    -   `tests/test_data_quality.py` - 3 smoke tests
+    -   `tests/test_wrangle.py` - 2 smoke tests
+-   [x] Smoke tests for readiness scoring (perfect, empty, high-missing, integration)
+-   [x] Add pytest configuration (async mode, markers)
+-   [x] Create ADK evaluation test files (demo workflow, error handling)
+-   [x] Create GitHub Actions CI workflow (pytest + ADK eval, no coverage/linting)
 
-**Acceptance criteria:**
+**Acceptance criteria (Hackathon Edition):**
 
--   `pytest` runs successfully
--   Coverage >70% for tools
--   CI workflow passes on push
+-   `pytest` runs successfully with smoke tests
+-   ADK eval files validate demo workflow
+-   CI workflow catches regressions before demos
+-   Use `adk web` for interactive testing and test file generation
 
 ---
 
