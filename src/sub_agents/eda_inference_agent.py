@@ -7,12 +7,12 @@ from ..tools.eda_inference_tools import (
     eda_one_sample_test_tool,
     eda_two_sample_test_tool,
 )
-from ..utils.consts import retry_config
+from ..utils.consts import StateKeys, retry_config
 
 eda_inference_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="eda_inference_agent",
-    output_key="inference_output",
+    output_key=StateKeys.INFERENCE,
     description=(
         """Inferential statistics specialist. Runs hypothesis tests and CLT demos, 
     then explains p values, confidence intervals, and practical meaning."""
@@ -21,7 +21,7 @@ eda_inference_agent = LlmAgent(
         """You are the Inferential Statistics Specialist.
 
 Dataset context:
-- Use column names exactly as shown in {ingestion_output}.
+- Use column names exactly as shown in {StateKeys.INGESTION}.
 - If the user references a column, map it to an exact name or ask for clarification.
 
 Tools:
@@ -46,6 +46,7 @@ Constraints:
 - Use alpha that the user requests or default to 0.05.
 - Do not manually compute statistics; trust the tool outputs.
 - Return the full result dictionaries so downstream agents can read them.
+- Do NOT call web search, external APIs, or MCPs.
 
 Output:
 - For each test: what was tested, tool outputs, and a short conclusion.

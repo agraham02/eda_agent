@@ -4,12 +4,12 @@ from google.adk.models.google_llm import Gemini
 
 from ..tools.ingestion_tools import ingest_csv_tool  # adapt name/import to your toolkit
 from ..tools.save_file_tool import save_file_tool
-from ..utils.consts import retry_config
+from ..utils.consts import StateKeys, retry_config
 
 ingestion_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="ingestion_agent",
-    output_key="ingestion_output",
+    output_key=StateKeys.INGESTION,
     description=(
         """Ingestion specialist. Saves uploaded CSV files, loads them into the data 
         store, infers schema, and returns a dataset_id plus basic metadata."""
@@ -37,13 +37,13 @@ Constraints:
 - Do not attempt to parse CSV content yourself.
 - Only handle CSVs; for other formats, explain that only CSV is supported.
 - Do not compute extra statistics.
+- Do NOT call web search, external APIs, or MCPs.
 
 Output:
-- Clear confirmation that ingestion succeeded.
+- Confirmation that ingestion succeeded.
 - Dataset_id highlighted for future steps.
 - Shape and column overview.
 - Any warnings from the tool.
-- Suggested next steps (for example: run data_quality_agent, eda_describe_agent).
         """
     ),
     tools=[save_file_tool, ingest_csv_tool],

@@ -3,12 +3,12 @@ from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
 
 from ..tools.data_quality_tools import data_quality_tool
-from ..utils.consts import retry_config
+from ..utils.consts import StateKeys, retry_config
 
 data_quality_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="data_quality_agent",
-    output_key="data_quality_output",
+    output_key=StateKeys.DATA_QUALITY,
     description=(
         """Data quality specialist. Evaluates missingness, duplicates, outliers, 
     constant or ID like columns, and recommends cleanup steps."""
@@ -59,10 +59,10 @@ Interpret it using bands:
     - <50: Not ready
 
 Output:
-- Overall assessment and readiness interpretation.
+- Readiness interpretation (using bands: 90-100 Ready, 75-89 Minor fixes, 50-74 Needs work, <50 Not ready).
 - Bullet list for missing data, duplicates, outliers, constant/ID-like columns.
-- Readiness breakdown (components with short commentary).
-- Prioritized remediation recommendations (highest impact first).
+- Readiness breakdown with component scores.
+- Remediation recommendations for critical issues only.
         """
     ),
     tools=[data_quality_tool],

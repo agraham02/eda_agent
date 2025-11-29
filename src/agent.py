@@ -7,9 +7,9 @@ from .sub_agents.eda_describe_agent import eda_describe_agent
 from .sub_agents.eda_inference_agent import eda_inference_agent
 from .sub_agents.eda_viz_agent import eda_viz_agent
 from .sub_agents.ingestion_agent import ingestion_agent
+from .sub_agents.quality_wrangle_loop_agent import quality_improvement_loop_agent
 from .sub_agents.summary_agent import summary_agent
 from .sub_agents.wrangle_agent import wrangle_agent
-from .sub_agents.quality_wrangle_loop_agent import quality_improvement_loop_agent
 from .utils.consts import retry_config
 
 root_agent = LlmAgent(
@@ -54,13 +54,8 @@ Rules:
 - Use existing dataset_ids from state; if unclear, list what you have and ask.
 - Prefer the standard flow: ingestion → quality → wrangling/EDA → inference → summary,
   but respect explicit user requests.
-- When summary_agent runs, show its full report to the user without editing.
-
-Response pattern:
-1) Briefly acknowledge what the user asked.
-2) Explain which agent you will call and why.
-3) Call that agent with the necessary parameters.
-4) Return the agent's results to the user and suggest an optional next step.
+- Return sub-agent outputs directly without adding commentary or explanations.
+- Do NOT call web search, external APIs, or MCPs.
 
 Your role is coordination and state management, not doing analysis.
 """

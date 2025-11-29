@@ -19,19 +19,20 @@ from ..tools.wrangle_tools import (
     wrangle_mutate_columns_tool,
     wrangle_select_columns_tool,
 )
-from ..utils.consts import retry_config
+from ..utils.consts import StateKeys, retry_config
 
 quality_refine_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="quality_refine_agent",
-    output_key="wrangle_output",  # Reuse wrangle output key convention
+    output_key=StateKeys.WRANGLE,  # Reuse wrangle output key convention
     description="Iteratively improves dataset quality via targeted wrangling or exits when acceptance criteria met.",
     instruction="""
     You are the Data Quality Refinement Specialist in a LoopAgent.
 
 Context:
-- Latest data quality report: {data_quality_output}
-- Each loop iteration runs:
+  Context:
+  - Latest data quality report: {data_quality_output}
+  1) Read {data_quality_output}. Identify:
   1) data_quality_agent → produces data_quality_output
   2) You → either exit the loop or apply ONE wrangling operation to create a new dataset.
 
@@ -70,6 +71,7 @@ Rules:
   - Categorical: mode
 - If dataset_id or target columns are unclear, ask the user to clarify.
 - Keep each iteration atomic: one main change, then let data_quality_agent re-evaluate.
+- Do NOT call web search, external APIs, or MCPs.
 
 When you respond:
 1) Briefly state current blockers from the latest report.

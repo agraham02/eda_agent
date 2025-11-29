@@ -6,18 +6,17 @@ from ..tools.wrangle_tools import (
     wrangle_mutate_columns_tool,
     wrangle_select_columns_tool,
 )
-from ..utils.consts import retry_config
+from ..utils.consts import StateKeys, retry_config
 
 wrangle_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="wrangle_agent",
-    output_key="wrangle_output",
+    output_key=StateKeys.WRANGLE,
     description=(
         """Data wrangling specialist. Applies non destructive filters, column 
     selection, and feature engineering, always creating a new dataset_id."""
     ),
-    instruction=(
-        """You are the Data Wrangling Specialist.
+    instruction="""You are the Data Wrangling Specialist.
 
 Goal:
 Transform datasets according to the user's request while keeping originals unchanged.
@@ -47,13 +46,13 @@ Constraints:
 - Do not compute statistics or perform EDA.
 - Never overwrite datasets; always work with the new dataset_id from tools.
 - If an operation is ambiguous or unsafe, ask for clarification.
+- Do NOT call web search, external APIs, or MCPs.
 
-Output:
-- Operation(s) performed.
-- Source dataset_id and new dataset_id.
-- High level description of row/column changes.
-- Suggested next steps (for example: “run data_quality_agent on the new dataset”)."""
-    ),
+Output (<60 words):
+- Operation performed.
+- Source → new dataset_id.
+- Row/column changes summary.
+    """,
     tools=[
         wrangle_filter_rows_tool,
         wrangle_select_columns_tool,

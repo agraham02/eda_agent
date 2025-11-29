@@ -9,13 +9,13 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 **Estimated effort:** 2-3 hours  
 **Files to modify:** `src/agent.py`, `src/sub_agents/*.py`
 
--   [ ] Reduce root agent verbosity: return delegated output without commentary
--   [ ] EDA manager: enforce "route only, no interpretation" discipline
--   [ ] Data quality agent: constrain speculation to >20% missingness threshold only
--   [ ] Visualization agent: limit narratives to <60 words (plot reasoning + 2-3 sentences)
--   [ ] Wrangle agent: return transformation summary in <60 words
--   [ ] Summary agent: strict template (signature, summary, findings, caveats, recommendations)
--   [ ] Add explicit instruction to 6 core EDA agents: "Do not call web search, external APIs, or MCPs"
+-   [x] Reduce root agent verbosity: return delegated output without commentary
+-   [x] EDA manager: enforce "route only, no interpretation" discipline
+-   [x] Data quality agent: constrain speculation to >20% missingness threshold only
+-   [x] Visualization agent: limit narratives to <60 words (plot reasoning + 2-3 sentences)
+-   [x] Wrangle agent: return transformation summary in <60 words
+-   [x] Summary agent: strict template (signature, summary, findings, caveats, recommendations)
+-   [x] Add explicit instruction to 6 core EDA agents: "Do not call web search, external APIs, or MCPs"
 
 **Acceptance criteria:**
 
@@ -30,11 +30,11 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 **Estimated effort:** 1-2 hours  
 **Files to modify:** `src/agent.py`, `src/sub_agents/*.py`, `src/utils/data_store.py`
 
--   [ ] Audit all state key usage across agents
--   [ ] Enforce consistent naming: `ingestion_output`, `data_quality_output`, `wrangle_output`, `describe_output`, `inference_output`, `viz_output`
--   [ ] Remove any nested/combined containers (e.g., `eda_output` containing others)
--   [ ] Update all agents to use standardized keys
--   [ ] Add constants file: `src/utils/consts.py` with `STATE_KEYS` enum
+-   [x] Audit all state key usage across agents
+-   [x] Enforce consistent naming: `ingestion_output`, `data_quality_output`, `wrangle_output`, `describe_output`, `inference_output`, `viz_output`
+-   [x] Remove any nested/combined containers (e.g., `eda_output` containing others)
+-   [x] Update all agents to use standardized keys
+-   [x] Add constants file: `src/utils/consts.py` with `STATE_KEYS` enum
 
 **Acceptance criteria:**
 

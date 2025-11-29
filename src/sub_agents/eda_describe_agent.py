@@ -6,12 +6,12 @@ from ..tools.eda_describe_tools import (
     eda_correlation_matrix_tool,
     eda_univariate_summary_tool,
 )
-from ..utils.consts import retry_config
+from ..utils.consts import StateKeys, retry_config
 
 eda_describe_agent = LlmAgent(
     model=Gemini(model="gemini-2.5-flash", retry_options=retry_config),
     name="eda_describe_agent",
-    output_key="describe_output",
+    output_key=StateKeys.DESCRIBE,
     description=(
         """Descriptive statistics specialist. Summarizes distributions, bivariate 
     relationships, and correlation structures for a dataset."""
@@ -41,11 +41,12 @@ Constraints:
 - Base all statements on tool outputs.
 - Do not invent additional numbers.
 - Keep explanations concise and focused on patterns relevant to the user.
+- Do NOT call web search, external APIs, or MCPs.
 
 Output:
 - Key univariate stats for the main columns.
 - Short description of any strong or interesting bivariate relationships.
-- A few bullet points that summarize what the data “looks like”.
+- A few bullet points that summarize what the data "looks like".
         """
     ),
     tools=[
