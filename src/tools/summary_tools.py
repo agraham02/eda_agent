@@ -13,8 +13,16 @@ def _validate_summary(summary_text: str) -> Dict[str, Any]:
     errors = []
     if not stripped:
         errors.append("Summary text is empty.")
-    if "## Data Signature" not in stripped:
-        errors.append("Missing required '## Data Signature' section at top.")
+    # Required sections
+    required_sections = [
+        "## Data Signature",
+        "## Key Findings",
+        "## Model Readiness Assessment",
+        "## 4. Recommendations",
+    ]
+    for section in required_sections:
+        if section not in stripped:
+            errors.append(f"Missing required section: {section}")
     if errors:
         return {
             "success": False,

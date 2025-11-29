@@ -1,8 +1,10 @@
 import os
 import uuid
 
-UPLOAD_DIR = "/tmp/data_whisperer_uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+from ..utils.paths import get_artifact_path
+
+UPLOAD_DIR = get_artifact_path("data_whisperer_uploads", create_dir=True)
+
 
 def save_file_tool(file: str, filename: str) -> str:
     """

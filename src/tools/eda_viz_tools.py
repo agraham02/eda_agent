@@ -10,10 +10,10 @@ from google.genai import types
 
 from ..utils.dataset_cache import get_dataset_cached as get_dataset
 from ..utils.errors import exception_to_error, wrap_success
+from ..utils.paths import get_artifact_path
 from ..utils.schemas import ChartType, VizResult, VizSpec, validate_column_exists
 
-PLOTS_DIR = "/tmp/data_whisperer_plots"
-os.makedirs(PLOTS_DIR, exist_ok=True)
+PLOTS_DIR = get_artifact_path("data_whisperer_plots", create_dir=True)
 
 # Simple in-memory cache to prevent duplicate plot generation within a session.
 # Keyed by (dataset_id, chart_type, x, y, hue, bins)
