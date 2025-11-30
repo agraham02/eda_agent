@@ -113,7 +113,9 @@ def compute_readiness_score(
         }
 
 
-def _numeric_summary(series: pd.Series) -> Optional[NumericSummary]:
+def _numeric_summary(
+    series: pd.Series, outlier_method: str = "both"
+) -> Optional[NumericSummary]:
     try:
         if not pd.api.types.is_numeric_dtype(series.dtype):
             return None
@@ -122,17 +124,39 @@ def _numeric_summary(series: pd.Series) -> Optional[NumericSummary]:
         q1 = desc["25%"]
         q3 = desc["75%"]
         iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
+        mean = desc["mean"]
+        std = desc["std"]
 
-        outliers = series[(series < lower_bound) | (series > upper_bound)].tolist()
+        # IQR-based outlier detection
+        iqr_outliers_mask = pd.Series([False] * len(series), index=series.index)
+        if outlier_method in ["iqr", "both"]:
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            iqr_outliers_mask = (series < lower_bound) | (series > upper_bound)
+
+        # Z-score based outlier detection (|z| > 3)
+        zscore_outliers_mask = pd.Series([False] * len(series), index=series.index)
+        if outlier_method in ["zscore", "both"]:
+            if not np.isnan(std) and std > 0:
+                z_scores = np.abs((series - mean) / std)
+                zscore_outliers_mask = z_scores > 3
+
+        # Combine outliers based on method
+        if outlier_method == "both":
+            outliers_mask = iqr_outliers_mask | zscore_outliers_mask
+        elif outlier_method == "zscore":
+            outliers_mask = zscore_outliers_mask
+        else:  # "iqr"
+            outliers_mask = iqr_outliers_mask
+
+        outliers = series[outliers_mask].tolist()
 
         # Optional: truncate to avoid huge JSON
         outliers_preview = outliers[:20]  # first 20 only
 
         return NumericSummary(
-            mean=float(desc["mean"]),
-            std=float(desc["std"]) if not np.isnan(desc["std"]) else None,
+            mean=float(mean),
+            std=float(std) if not np.isnan(std) else None,
             min=float(desc["min"]),
             q1=float(q1),
             median=float(desc["50%"]),
@@ -142,16 +166,21 @@ def _numeric_summary(series: pd.Series) -> Optional[NumericSummary]:
             outlier_count=len(outliers),
             outliers=outliers_preview,
             outliers_truncated=len(outliers) > 20,
+            outlier_method=outlier_method,
         )
     except (ValueError, TypeError, KeyError) as e:
         # If numeric summary fails, return None
         return None
 
 
-def data_quality_tool(dataset_id: str) -> Dict[str, Any]:
+def data_quality_tool(dataset_id: str, outlier_method: str = "both") -> Dict[str, Any]:
     """
     Run basic data quality checks on a dataset that has already been
     ingested and stored in the in-memory data store.
+
+    Args:
+        dataset_id: The ID of the dataset to analyze
+        outlier_method: Method for outlier detection - "iqr", "zscore", or "both" (default: "both")
     """
     try:
         df = get_dataset(dataset_id)
@@ -202,7 +231,9 @@ def data_quality_tool(dataset_id: str) -> Dict[str, Any]:
             col_issues.append("Column is constant (only one unique non-null value).")
 
         if semantic_type in {"numeric", "numeric_categorical"}:
-            numeric_stats = _numeric_summary(series.dropna())
+            numeric_stats = _numeric_summary(
+                series.dropna(), outlier_method=outlier_method
+            )
         else:
             numeric_stats = None
 

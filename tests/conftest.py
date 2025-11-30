@@ -57,3 +57,14 @@ def duplicate_df():
 def registered_perfect_dataset(perfect_df):
     """Pre-registered dataset_id for tests that need it"""
     return register_dataset(perfect_df)
+
+
+@pytest.fixture
+def outlier_df():
+    """DataFrame with known outliers for testing detection methods"""
+    np.random.seed(42)
+    # Generate 95 normal values (mean=50, std=10)
+    normal = np.random.normal(50, 10, 95)
+    # Add 5 clear outliers
+    outliers = np.array([0, 5, 150, 180, 200])
+    return pd.DataFrame({"value": np.concatenate([normal, outliers])})

@@ -54,6 +54,14 @@ class Alternative(str, Enum):
     GREATER = "greater"
 
 
+class OutlierMethod(str, Enum):
+    """Outlier detection methods."""
+
+    IQR = "iqr"
+    ZSCORE = "zscore"
+    BOTH = "both"
+
+
 # ============================================================================
 # COLUMN AND DATASET SCHEMAS
 # ============================================================================
@@ -195,6 +203,7 @@ class NumericSummary(BaseModel):
     outlier_count: int = Field(ge=0)
     outliers: List[float] = Field(default_factory=list)
     outliers_truncated: bool = False
+    outlier_method: str = "both"
 
 
 class DataQualityColumn(BaseModel):
@@ -333,6 +342,7 @@ class UnivariateSummaryItem(BaseModel):
     min: Optional[float] = None
     max: Optional[float] = None
     n_outliers: Optional[int] = None
+    outlier_method: Optional[str] = None
     unique_values: Optional[List[str]] = None
     counts: Optional[Dict[str, int]] = None
     proportions: Optional[Dict[str, float]] = None

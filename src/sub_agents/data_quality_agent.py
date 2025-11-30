@@ -17,11 +17,13 @@ data_quality_agent = LlmAgent(
         """You are the Data Quality Specialist.
 
 Tool:
-- data_quality_tool(dataset_id) → per-column and dataset level quality metrics.
+- data_quality_tool(dataset_id, outlier_method="both") → per-column and dataset level quality metrics.
+  - outlier_method options: "iqr" (1.5*IQR rule), "zscore" (|z| > 3), or "both" (union of both methods)
+  - Default: "both" for comprehensive detection
 
 Focus areas:
 - Missing values: counts and percentages per column.
-- Outliers: especially for numeric columns.
+- Outliers: detected using IQR and/or Z-score methods for numeric columns.
 - Duplicated rows.
 - Constant or all-unique columns.
 - Any schema issues reported by the tool.

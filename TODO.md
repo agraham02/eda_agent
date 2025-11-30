@@ -91,11 +91,11 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 **Estimated effort:** 3-4 hours  
 **Files to modify:** All `src/tools/*.py`
 
--   [ ] Create error response schema: `{success: bool, error_code: str, message: str, hint: str}`
--   [ ] Wrap all tool functions with try/except returning structured errors
--   [ ] Add error codes enum in `src/utils/errors.py`
--   [ ] Update agents to handle and display structured errors gracefully
--   [ ] Add error recovery hints (e.g., "Column 'X' not found. Available: Y, Z")
+-   [x] Create error response schema: `{success: bool, error_code: str, message: str, hint: str}`
+-   [x] Wrap all tool functions with try/except returning structured errors
+-   [x] Add error codes enum in `src/utils/errors.py`
+-   [x] Update agents to handle and display structured errors gracefully
+-   [x] Add error recovery hints (e.g., "Column 'X' not found. Available: Y, Z")
 
 **Acceptance criteria:**
 
@@ -142,17 +142,17 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 **Estimated effort:** 2-3 hours  
 **Files to modify:** `src/tools/data_quality_tools.py`, `src/tools/eda_describe_tools.py`
 
--   [ ] Add Z-score outlier detection alongside IQR
--   [ ] Parameter: `outlier_method: Literal["iqr", "zscore", "both"] = "both"`
--   [ ] Report both methods in data quality output
--   [ ] Update describe agent to show both
--   [ ] Add tests for Z-score calculation
+-   [x] Add Z-score outlier detection alongside IQR
+-   [x] Parameter: `outlier_method: Literal["iqr", "zscore", "both"] = "both"`
+-   [x] Report both methods in data quality output
+-   [x] Update describe agent to show both
+-   [x] Add tests for Z-score calculation
 
 **Acceptance criteria:**
 
--   Both methods available
--   Results include method used
--   Tests verify correctness
+-   [x] Both methods available
+-   [x] Results include method used
+-   [x] Tests verify correctness
 
 ---
 

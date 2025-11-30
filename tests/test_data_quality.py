@@ -51,3 +51,49 @@ def test_full_quality_pipeline(perfect_df):
 
     assert result["ok"] is True
     assert result["readiness_score"]["overall"] > 85  # Should be high quality
+
+
+@pytest.mark.smoke
+def test_iqr_outlier_detection(outlier_df):
+    """Test IQR outlier detection finds known outliers"""
+    from src.utils.data_store import register_dataset
+
+    dataset_id = register_dataset(outlier_df)
+    result = data_quality_tool(dataset_id, outlier_method="iqr")
+
+    assert result["ok"] is True
+    # Check that outliers were detected in the numeric column
+    col_stats = result["columns"][0]
+    assert col_stats["numeric_summary"] is not None
+    assert col_stats["numeric_summary"]["outlier_count"] > 0
+    assert col_stats["numeric_summary"]["outlier_method"] == "iqr"
+
+
+@pytest.mark.smoke
+def test_zscore_outlier_detection(outlier_df):
+    """Test Z-score outlier detection"""
+    from src.utils.data_store import register_dataset
+
+    dataset_id = register_dataset(outlier_df)
+    result = data_quality_tool(dataset_id, outlier_method="zscore")
+
+    assert result["ok"] is True
+    col_stats = result["columns"][0]
+    assert col_stats["numeric_summary"] is not None
+    assert col_stats["numeric_summary"]["outlier_method"] == "zscore"
+
+
+@pytest.mark.smoke
+def test_both_outlier_methods(outlier_df):
+    """Test using both methods returns union of outliers"""
+    from src.utils.data_store import register_dataset
+
+    dataset_id = register_dataset(outlier_df)
+    result = data_quality_tool(dataset_id, outlier_method="both")
+
+    assert result["ok"] is True
+    col_stats = result["columns"][0]
+    assert col_stats["numeric_summary"] is not None
+    assert col_stats["numeric_summary"]["outlier_method"] == "both"
+    # With both methods, we should detect at least some outliers
+    assert col_stats["numeric_summary"]["outlier_count"] > 0

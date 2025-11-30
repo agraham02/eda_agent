@@ -26,8 +26,15 @@ from ..utils.schemas import (
 def build_univariate_summary(
     dataset_id: str,
     columns: Optional[List[str]] = None,
+    outlier_method: str = "both",
 ) -> UnivariateSummaryResult:
-    """Build univariate summaries returning a schema model."""
+    """Build univariate summaries returning a schema model.
+
+    Args:
+        dataset_id: The ID of the dataset to analyze
+        columns: List of column names to summarize (None for all columns)
+        outlier_method: Method for outlier detection - "iqr", "zscore", or "both" (default: "both")
+    """
     df = get_dataset(dataset_id)
 
     if columns is None:
@@ -78,10 +85,30 @@ def build_univariate_summary(
             min_val = clean.min()
             max_val = clean.max()
 
-            # Outlier detection (1.5*IQR rule) — matches your notes
-            lower = q1 - 1.5 * iqr
-            upper = q3 + 1.5 * iqr
-            n_outliers = int(((clean < lower) | (clean > upper)).sum())
+            # Outlier detection with multiple methods
+            # IQR-based outliers (1.5*IQR rule)
+            iqr_outliers_mask = pd.Series([False] * len(clean), index=clean.index)
+            if outlier_method in ["iqr", "both"]:
+                lower = q1 - 1.5 * iqr
+                upper = q3 + 1.5 * iqr
+                iqr_outliers_mask = (clean < lower) | (clean > upper)
+
+            # Z-score based outliers (|z| > 3)
+            zscore_outliers_mask = pd.Series([False] * len(clean), index=clean.index)
+            if outlier_method in ["zscore", "both"]:
+                if pd.notna(std) and std > 0:
+                    z_scores = np.abs((clean - mean) / std)
+                    zscore_outliers_mask = z_scores > 3
+
+            # Combine outliers based on method
+            if outlier_method == "both":
+                outliers_mask = iqr_outliers_mask | zscore_outliers_mask
+            elif outlier_method == "zscore":
+                outliers_mask = zscore_outliers_mask
+            else:  # "iqr"
+                outliers_mask = iqr_outliers_mask
+
+            n_outliers = int(outliers_mask.sum())
             items.append(
                 UnivariateSummaryItem(
                     name=name,
@@ -100,6 +127,7 @@ def build_univariate_summary(
                     min=float(min_val),
                     max=float(max_val),
                     n_outliers=n_outliers,
+                    outlier_method=outlier_method,
                 )
             )
 
@@ -250,15 +278,18 @@ def build_correlation_matrix(
 # TOOL WRAPPERS
 # -----------------------------
 def eda_univariate_summary_tool(
-    dataset_id: str, columns_csv: str = ""
+    dataset_id: str, columns_csv: str = "", outlier_method: str = "both"
 ) -> Dict[str, Any]:
     """Tool wrapper for univariate summary.
 
-    columns_csv: Comma-separated column names. Leave empty to summarize all columns.
+    Args:
+        dataset_id: The ID of the dataset to analyze
+        columns_csv: Comma-separated column names. Leave empty to summarize all columns.
+        outlier_method: Method for outlier detection - "iqr", "zscore", or "both" (default: "both")
     """
     try:
         columns = parse_columns_csv(columns_csv)
-        result = build_univariate_summary(dataset_id, columns)
+        result = build_univariate_summary(dataset_id, columns, outlier_method)
         return wrap_success(result.model_dump())
     except KeyError as e:
         return exception_to_error(

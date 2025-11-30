@@ -20,7 +20,8 @@ eda_describe_agent = LlmAgent(
         """Role: Describe distributions and relationships in the dataset.
 
 Tools and when to use:
-- eda_univariate_summary_tool: "basic stats", "describe column X"
+- eda_univariate_summary_tool(dataset_id, columns_csv="", outlier_method="both"): "basic stats", "describe column X"
+  - outlier_method options: "iqr", "zscore", or "both" (default: "both")
 - eda_bivariate_summary_tool: "relationship between X and Y"
 - eda_correlation_matrix_tool: "which variables are correlated"
 
