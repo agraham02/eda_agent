@@ -15,37 +15,16 @@ ingestion_agent = LlmAgent(
         returns dataset_id and basic metadata."""
     ),
     instruction=(
-        """Role: Load CSV files into the system.
-
-Tools:
-- save_file_tool: Save uploaded file to disk
-- ingest_csv_tool: Load CSV, infer schema, return dataset_id
+        """Load CSV files into system.
 
 Process:
-1. Call save_file_tool on uploaded file
-2. Call ingest_csv_tool with file path
-3. Extract from tool result:
-   - dataset_id
-   - rows and columns
-   - column names and dtypes
-   - warnings
-
-Output:
-- "Ingestion successful"
-- Dataset_id (for next steps)
-- Shape and column summary
-- Warnings (if any)
+1. save_file_tool → save uploaded file
+2. ingest_csv_tool → load CSV, infer schema
+3. Report: dataset_id, shape, columns, dtypes, warnings
 
 Constraints:
 - CSV only; reject other formats
-- Do not parse CSV yourself
-- Do not compute extra statistics
-- Do not call web search, external APIs, or MCPs
-
-Error Handling:
-- Tools return ok=true on success or ok=false with error details.
-- Always check the ok field before using results.
-- If ok=false, explain error.message and error.hint clearly to the user.
+- Check ok field; explain errors clearly
         """
     ),
     tools=[save_file_tool, ingest_csv_tool],

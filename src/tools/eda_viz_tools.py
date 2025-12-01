@@ -1,13 +1,15 @@
 import json
 import os
 import uuid
-from typing import Any, Dict, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
+from ..utils.consts import OUTLIER_COMPARISON_THRESHOLD
 from ..utils.dataset_cache import get_dataset_cached as get_dataset
 from ..utils.errors import (
     RENDER_ERROR,
@@ -401,4 +403,237 @@ async def eda_render_plot_tool(tool_context: ToolContext, spec: Dict[str, Any]) 
             RENDER_ERROR,
             e,
             hint="Verify columns are numeric/categorical as required for the chosen chart type",
+        )
+
+
+# -----------------------------------------------------------------------------
+# Long-Running Operation (LRO) Tools for Outlier Visualization
+# These use ADK's request_confirmation() pattern to pause for user input
+# -----------------------------------------------------------------------------
+
+
+def check_outlier_comparison_tool(
+    tool_context: ToolContext,
+    dataset_id: str,
+    outlier_pct: float,
+    columns_with_outliers: List[str],
+) -> Dict[str, Any]:
+    """LRO tool that pauses to ask user about outlier comparison visualization.
+
+    This tool is called when data quality analysis detects a high outlier
+    percentage (>10% by default). It pauses execution and presents the user
+    with the option to see side-by-side visualizations comparing data with
+    and without outliers.
+
+    The tool handles three scenarios:
+    1. First call (no confirmation yet): Pauses and asks user for decision
+    2. Resume with approval: Returns signal to create comparison visualizations
+    3. Resume with rejection: Returns signal to skip comparison
+
+    Args:
+        tool_context: ADK-provided context for LRO operations
+        dataset_id: ID of the dataset being analyzed
+        outlier_pct: Overall outlier percentage across numeric columns
+        columns_with_outliers: List of column names with detected outliers
+
+    Returns:
+        Dictionary with status and action to take:
+        - status: "pending" | "approved" | "rejected"
+        - action: "create_comparison" | "skip_comparison"
+    """
+    # Format columns for display (limit to first 6)
+    cols_preview = ", ".join(columns_with_outliers[:6])
+    if len(columns_with_outliers) > 6:
+        cols_preview += f", ... (+{len(columns_with_outliers) - 6} more)"
+
+    # SCENARIO 1: First call - no confirmation yet, pause and ask user
+    if not tool_context.tool_confirmation:
+        tool_context.request_confirmation(
+            hint=(
+                f"📈 **High Outlier Rate Detected**\n\n"
+                f"**Outlier Percentage:** {outlier_pct:.1%} of values\n"
+                f"**Threshold:** {OUTLIER_COMPARISON_THRESHOLD:.0%}\n\n"
+                f"**Columns with outliers:**\n  {cols_preview}\n\n"
+                "Would you like to see **side-by-side comparison** visualizations?\n"
+                "This will show each affected column with and without outliers.\n\n"
+                "• **Approve** → Generate comparison plots\n"
+                "• **Reject** → Continue with standard visualization"
+            ),
+            payload={
+                "dataset_id": dataset_id,
+                "outlier_pct": outlier_pct,
+                "columns": columns_with_outliers[:6],  # Limit payload size
+            },
+        )
+        return {
+            "ok": True,
+            "status": "pending",
+            "message": "Awaiting user decision on outlier comparison visualization",
+            "outlier_pct": outlier_pct,
+            "columns_count": len(columns_with_outliers),
+        }
+
+    # SCENARIO 2 & 3: Resuming after user response
+    if tool_context.tool_confirmation.confirmed:
+        # User approved - create comparison visualizations
+        return wrap_success(
+            {
+                "status": "approved",
+                "action": "create_comparison",
+                "dataset_id": dataset_id,
+                "columns": columns_with_outliers,
+                "message": (
+                    f"User approved outlier comparison visualization for "
+                    f"{len(columns_with_outliers)} column(s)."
+                ),
+            }
+        )
+    else:
+        # User rejected - skip comparison
+        return wrap_success(
+            {
+                "status": "rejected",
+                "action": "skip_comparison",
+                "dataset_id": dataset_id,
+                "message": "User chose to skip outlier comparison visualization.",
+            }
+        )
+
+
+async def create_comparison_viz_tool(
+    tool_context: ToolContext,
+    dataset_id: str,
+    column: str,
+    chart_type: str = "box",
+) -> Dict[str, Any]:
+    """Create side-by-side visualization comparing data with and without outliers.
+
+    Generates a figure with two subplots:
+    - Left: Full data including outliers, labeled "Including outliers (n=X)"
+    - Right: Data with outliers excluded, labeled "Outliers excluded (n=X)"
+
+    Args:
+        tool_context: ADK-provided context for artifact saving
+        dataset_id: ID of the dataset to visualize
+        column: Column name to create comparison for
+        chart_type: Type of chart ("box" or "histogram")
+
+    Returns:
+        Dictionary with artifact information and comparison statistics
+    """
+    try:
+        df = get_dataset(dataset_id)
+
+        if column not in df.columns:
+            available = ", ".join(df.columns[:10])
+            return exception_to_error(
+                VALIDATION_ERROR,
+                ValueError(f"Column '{column}' not found"),
+                hint=f"Available columns: {available}...",
+            )
+
+        series = df[column].dropna()
+
+        if not np.issubdtype(series.dtype, np.number):
+            return exception_to_error(
+                VALIDATION_ERROR,
+                ValueError(f"Column '{column}' is not numeric"),
+                hint="Outlier comparison requires numeric columns",
+            )
+
+        # Calculate outlier bounds using IQR method
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+
+        # Create filtered data (without outliers)
+        outlier_mask = (series < lower_bound) | (series > upper_bound)
+        series_no_outliers = series[~outlier_mask]
+
+        n_total = len(series)
+        n_outliers = outlier_mask.sum()
+        n_clean = len(series_no_outliers)
+
+        # Create side-by-side figure
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+        if chart_type.lower() == "histogram":
+            # Histogram comparison
+            bins = min(30, int(np.sqrt(n_total)))
+            sns.histplot(series, bins=bins, ax=axes[0], color="steelblue")
+            axes[0].set_title(f"Including outliers (n={n_total:,})")
+            axes[0].set_xlabel(column)
+            axes[0].set_ylabel("Count")
+
+            sns.histplot(series_no_outliers, bins=bins, ax=axes[1], color="seagreen")
+            axes[1].set_title(f"Outliers excluded (n={n_clean:,})")
+            axes[1].set_xlabel(column)
+            axes[1].set_ylabel("Count")
+        else:
+            # Box plot comparison (default)
+            sns.boxplot(y=series, ax=axes[0], color="steelblue")
+            axes[0].set_title(f"Including outliers (n={n_total:,})")
+            axes[0].set_ylabel(column)
+
+            sns.boxplot(y=series_no_outliers, ax=axes[1], color="seagreen")
+            axes[1].set_title(f"Outliers excluded (n={n_clean:,})")
+            axes[1].set_ylabel(column)
+
+        # Add overall title
+        fig.suptitle(
+            f"Outlier Comparison: {column} ({n_outliers:,} outliers removed)",
+            fontsize=12,
+            fontweight="bold",
+        )
+        fig.tight_layout()
+
+        # Save plot to disk
+        filename = f"{uuid.uuid4().hex}_comparison_{column}.png"
+        file_path = os.path.join(PLOTS_DIR, filename)
+        fig.savefig(file_path, dpi=100)
+        plt.close(fig)
+
+        # Read and save as artifact
+        with open(file_path, "rb") as f:
+            image_data = f.read()
+
+        image_part = types.Part.from_bytes(
+            data=image_data,
+            mime_type="image/png",
+        )
+
+        try:
+            version = await tool_context.save_artifact(
+                filename=filename, artifact=image_part
+            )
+        except Exception:
+            version = None
+
+        return wrap_success(
+            {
+                "artifact_filename": filename,
+                "artifact_version": version,
+                "mime_type": "image/png",
+                "message": f"Comparison visualization created for '{column}'",
+                "dataset_id": dataset_id,
+                "column": column,
+                "chart_type": chart_type,
+                "comparison_stats": {
+                    "total_values": n_total,
+                    "outliers_removed": int(n_outliers),
+                    "clean_values": n_clean,
+                    "outlier_pct": float(n_outliers / n_total) if n_total > 0 else 0,
+                    "lower_bound": float(lower_bound),
+                    "upper_bound": float(upper_bound),
+                },
+            }
+        )
+
+    except Exception as e:
+        return exception_to_error(
+            RENDER_ERROR,
+            e,
+            hint="Check that the column is numeric and the dataset exists",
         )

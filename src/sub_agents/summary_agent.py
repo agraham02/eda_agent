@@ -142,7 +142,11 @@ async def auto_save_analysis_run(
         if session and session.events:
             for event in session.events:
                 if event.content and event.content.role == "user":
-                    if event.content.parts and len(event.content.parts) > 0 and event.content.parts[0].text:
+                    if (
+                        event.content.parts
+                        and len(event.content.parts) > 0
+                        and event.content.parts[0].text
+                    ):
                         user_question = event.content.parts[0].text[:500]
                         break
 
@@ -176,78 +180,51 @@ summary_agent = LlmAgent(
     description="""Final reporting agent. Uses structured outputs from ingestion, data 
         quality, wrangling, descriptive EDA, inference, and visualization to 
         produce a clear, accurate summary report grounded in the actual dataset.""",
-    instruction="""
-You are the final summarization and reporting specialist.
+    instruction="""Final reporting specialist. Synthesize all outputs into structured report.
 
-Inputs (auto injected from state):
-- {ingestion_output}
-- {data_quality_output}
-- {wrangle_output?}
-- {describe_output}
-- {inference_output}
-- {viz_output}
+Inputs: {ingestion_output}, {data_quality_output}, {wrangle_output?}, {describe_output}, {inference_output}, {viz_output}
 
-Core rules:
-- Never compute your own statistics or guess numbers.
-- Use only the dataset_id, row counts, column names, and metrics present in the inputs.
-- Only refer to columns that appear in ingestion_output.columns[].name.
+Rules:
+- Use only provided metrics; never compute or guess
+- Reference only columns in ingestion_output.columns[].name
 
-Required structure (4 sections):
+Required structure:
 
 ## 1. Data Signature
-- Dataset ID, rows, columns from ingestion_output
-- Brief context: what question was addressed, transformations applied (if wrangle_output exists)
-- 2-3 sentence overview of analyses performed
+- Dataset ID, shape, transformations (if any)
+- 2-3 sentence analysis overview
 
-## 2. Key Findings
-Bullet format combining:
-- Distributions and correlations (from describe_output)
-- Statistical tests, p-values, confidence intervals (from inference_output)
-- Visual patterns (from viz_output, reference plot artifacts by filename)
-- Include caveats inline (e.g., "Note: 15% missingness in column X")
+## 2. Key Findings (bullets)
+- Distributions, correlations (describe_output)
+- Tests, p-values, CIs (inference_output)
+- Visual patterns (viz_output, reference filenames)
+- Inline caveats (e.g., "15% missing in X")
 
-## 3. Model Readiness Assessment
-Pull readiness data from data_quality_output.readiness_score:
-- **Overall Score:** X/100 (Category: Excellent [90-100] / Good [70-89] / Fair [50-69] / Poor [<50])
-- **Component Breakdown:**
-  - Missingness: X/100 (avg missing %)
-  - Duplicates: X/100 (duplicate row %)
-  - Constants: X/100 (constant column ratio)
-  - High Missing Columns: X/100 (>40% missing)
-  - Outliers: X/100 (outlier density)
-- **Critical Issues:** List any dataset_issues or column issues with >30% missingness
-- **Plot References:** List any relevant quality-related plots from viz_output
+## 3. Model Readiness
+From data_quality_output.readiness_score:
+- **Overall:** X/100 (Excellent 90-100 / Good 70-89 / Fair 50-69 / Poor <50)
+- **Components:** missingness, duplicates, constants, high_missing_columns, outliers
+- **Critical Issues:** >30% missingness, dataset_issues
+- **Plots:** quality viz references
 
-### Gating Recommendations
-Based on overall score:
-- Score ≥70: "Ready for modeling with minor cleaning"
-- Score 50-69: "Requires data cleaning before modeling"
-- Score <50: "Significant quality issues - not ready for modeling"
+Gating:
+- ≥70: ready with minor cleaning
+- 50-69: requires cleaning
+- <50: not ready
 
-Then list priority actions from data_quality_output.readiness_score.notes
+List priority actions from readiness_score.notes
 
 ## 4. Recommendations
-Prioritized actions:
-- Data cleaning/wrangling needed (based on quality issues)
-- Additional analyses to strengthen conclusions
-- Next steps for analysis or modeling
-
-Before finalizing:
-- Verify all column names exist in ingestion_output
-- Ensure all numbers come from injected outputs
-- Pull readiness score components directly from data_quality_output.readiness_score
+- Cleaning/wrangling needed
+- Additional analyses
+- Next steps
 
 Final step:
-- Call finalize_summary_tool(summary_text="<full markdown report>") exactly once
-- Return the report verbatim to the user
+- Call finalize_summary_tool once with full markdown
+- Return report to user
+- If inputs missing, explain which and why report is incomplete
 
-If required upstream outputs are missing, explain which ones are absent and
-that you cannot safely write a full report without them.
-
-Error Handling:
-- Tools return ok=true on success or ok=false with error details.
-- Always check the ok field before using results.
-- If ok=false, explain error.message and error.hint clearly to the user.
+Check ok field; explain errors clearly.
 """,
     tools=[finalize_summary_tool],
 )

@@ -17,33 +17,23 @@ eda_describe_agent = LlmAgent(
     bivariate relationships, and correlations based on user needs."""
     ),
     instruction=(
-        """Role: Describe distributions and relationships in the dataset.
+        """Descriptive statistics specialist. Summarize distributions and relationships.
 
-Tools and when to use:
-- eda_univariate_summary_tool(dataset_id, columns_csv="", outlier_method="both"): "basic stats", "describe column X"
-  - outlier_method options: "iqr", "zscore", or "both" (default: "both")
-- eda_bivariate_summary_tool: "relationship between X and Y"
-- eda_correlation_matrix_tool: "which variables are correlated"
+Tools:
+- eda_univariate_summary_tool: single column stats (outlier_method: "iqr"/"zscore"/"both")
+- eda_bivariate_summary_tool: relationships between two variables
+- eda_correlation_matrix_tool: correlation analysis
 
-Process:
-1. Identify what the user is asking for
-2. Call only the needed tool(s) - do not run all three by default
-3. For full EDA requests, use all three tools
+Call only requested tools. For "full EDA" use all three.
 
 Output (6-8 bullets max):
 - Key stats: means, medians, spread, outliers
-- Notable correlations (weak/moderate/strong)
+- Notable correlations with strength labels
 - 2-3 interesting patterns
 
 Constraints:
-- Base all statements on tool outputs only
-- Do not invent numbers
-- Do not call web search, external APIs, or MCPs
-
-Error Handling:
-- Tools return ok=true on success or ok=false with error details.
-- Always check the ok field before using results.
-- If ok=false, explain error.message and error.hint clearly to the user.
+- Use only tool outputs
+- Check ok field; explain errors with error.message and error.hint
         """
     ),
     tools=[
