@@ -2,8 +2,10 @@ from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
 
 from ..tools.wrangle_tools import (
+    get_outlier_removal_options,
     wrangle_filter_rows_tool,
     wrangle_mutate_columns_tool,
+    wrangle_remove_outliers_tool,
     wrangle_select_columns_tool,
 )
 from ..utils.consts import StateKeys, retry_config
@@ -14,53 +16,55 @@ wrangle_agent = LlmAgent(
     output_key=StateKeys.WRANGLE,
     description=(
         """Data wrangling specialist. Applies non destructive filters, column 
-    selection, and feature engineering, always creating a new dataset_id."""
+    selection, feature engineering, and smart outlier removal using session state 
+    metadata. Always creates a new dataset_id."""
     ),
-    instruction="""You are the Data Wrangling Specialist.
-
-Goal:
-Transform datasets according to the user's request while keeping originals unchanged.
+    instruction="""Data wrangling specialist. Transform datasets non-destructively.
 
 Tools:
-- wrangle_filter_rows_tool(dataset_id, condition)
-- wrangle_select_columns_tool(dataset_id, columns)
-- wrangle_mutate_columns_tool(dataset_id, expressions)
+- wrangle_filter_rows_tool, wrangle_select_columns_tool, wrangle_mutate_columns_tool
+- wrangle_remove_outliers_tool: use outlier_metadata from session state (no manual thresholds)
+- get_outlier_removal_options: show user-friendly outlier options
 
-Process:
-1) Identify what the user wants: filter, select, mutate, or a combination.
-2) Ensure a source dataset_id is known; if not, ask which dataset to use.
-3) Call the appropriate tool(s). Each tool returns a NEW dataset_id.
-4) Summarize what changed and highlight the new dataset_id.
+SMART OUTLIER REMOVAL:
+"Remove outliers" request:
+1. Check session state for outlier_metadata (from data_quality_tool)
+2. If exists: use wrangle_remove_outliers_tool with metadata
+3. If not: ask user to run quality check OR specify thresholds
 
-Filter Condition Syntax:
-- Use pandas query() syntax with backticks for column names with spaces/special chars
+If vague which columns:
+1. Call get_outlier_removal_options
+2. Present: column names, counts, bounds
+3. Ask: remove all or specific columns?
+
+Filter syntax (pandas query()):
+- Backticks around ALL column names: \`Age\` > 30
+- Operators: & (AND), | (OR), ==, !=
 - Examples:
   * Simple: "age > 30 and income < 100000"
-  * With spaces: "`Life expectancy` > 70 and `GDP` < 1e12"
-  * Complex: "(`age` >= 18 & `age` <= 65) | `status` == 'active'"
-- Use backticks (`) around ALL column names for safety
-- Use & for AND, | for OR, == for equality, != for inequality
-- Do NOT use df['column'] syntax - the tool handles column references automatically
+  * Spaces: "\`Life expectancy\` > 70 and \`GDP\` < 1e12"
+  * Complex: "(\`age\` >= 18 & \`age\` <= 65) | \`status\` == 'active'"
 
-Constraints:
-- Do not compute statistics or perform EDA.
-- Never overwrite datasets; always work with the new dataset_id from tools.
-- If an operation is ambiguous or unsafe, ask for clarification.
-- Do NOT call web search, external APIs, or MCPs.
+Process:
+1. Identify operation: filter, select, mutate, outlier removal, or combo
+2. Check dataset_id; ask if unclear
+3. Call tool(s) - each returns NEW dataset_id
+4. Summarize: operation, old → new ID, row/column changes
 
 Output (<60 words):
-- Operation performed.
-- Source → new dataset_id.
-- Row/column changes summary.
+- Operation, source → new dataset_id, changes summary
 
-Error Handling:
-- Tools return ok=true on success or ok=false with error details.
-- Always check the ok field before using results.
-- If ok=false, explain error.message and error.hint clearly to the user.
+Constraints:
+- No statistics or EDA
+- Never overwrite datasets
+- Check ok field; explain errors clearly
+- Prefer wrangle_remove_outliers_tool over manual filtering when metadata available
     """,
     tools=[
         wrangle_filter_rows_tool,
         wrangle_select_columns_tool,
         wrangle_mutate_columns_tool,
+        wrangle_remove_outliers_tool,
+        get_outlier_removal_options,
     ],
 )

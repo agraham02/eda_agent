@@ -1,7 +1,7 @@
 # wrangle_tools.py
 
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -256,3 +256,249 @@ def wrangle_mutate_columns_tool(
             e,
             hint="Verify dataset_id and expressions are valid",
         )
+
+
+def wrangle_remove_outliers_tool(
+    dataset_id: str,
+    outlier_metadata: Dict[str, Any],
+    columns: Optional[List[str]] = None,
+    strategy: str = "remove",
+) -> Dict[str, Any]:
+    """
+    Smart outlier removal tool that uses pre-computed outlier metadata from data_quality_tool.
+
+    This tool removes outliers based on the bounds calculated during quality analysis,
+    eliminating the need for users to manually specify thresholds.
+
+    Args:
+        dataset_id: The ID of the dataset to filter
+        outlier_metadata: The outlier_metadata dict from data_quality_tool containing
+                         columns_with_outliers with lower_bound and upper_bound for each column
+        columns: Optional list of column names to remove outliers from. If None, removes
+                outliers from ALL columns in the metadata.
+        strategy: "remove" (default) - removes rows with outliers
+                 "clip" - clips outlier values to bounds (future feature)
+
+    Returns:
+        FilterResult with the new dataset_id and summary of removed rows
+
+    Example usage:
+        # The agent can pass outlier_metadata from state:
+        wrangle_remove_outliers_tool(
+            dataset_id="ds_abc123",
+            outlier_metadata=state["outlier_metadata"],
+            columns=["Life expectancy"]  # or None for all columns
+        )
+    """
+    try:
+        df = get_dataset(dataset_id)
+    except KeyError as e:
+        return make_error(
+            DATASET_NOT_FOUND,
+            str(e),
+            hint="Ingest dataset before removing outliers",
+            context={"dataset_id": dataset_id},
+        )
+
+    # Validate outlier_metadata structure
+    if not outlier_metadata or "columns_with_outliers" not in outlier_metadata:
+        return make_error(
+            INVALID_PARAMETER,
+            "outlier_metadata is missing or invalid",
+            hint="Run data_quality_tool first to generate outlier_metadata",
+            context={"dataset_id": dataset_id},
+        )
+
+    columns_with_outliers = outlier_metadata.get("columns_with_outliers", [])
+    if not columns_with_outliers:
+        return wrap_success(
+            {
+                "message": "No outliers found in metadata - dataset unchanged",
+                "original_dataset_id": dataset_id,
+                "new_dataset_id": dataset_id,
+                "n_rows_before": len(df),
+                "n_rows_after": len(df),
+                "columns_processed": [],
+            }
+        )
+
+    # Filter to requested columns if specified
+    if columns:
+        columns_lower = [c.lower() for c in columns]
+        columns_with_outliers = [
+            c
+            for c in columns_with_outliers
+            if c.get("column_name", "").lower() in columns_lower
+        ]
+
+    if not columns_with_outliers:
+        return wrap_success(
+            {
+                "message": "Specified columns have no outliers in metadata",
+                "original_dataset_id": dataset_id,
+                "new_dataset_id": dataset_id,
+                "n_rows_before": len(df),
+                "n_rows_after": len(df),
+                "columns_processed": columns or [],
+            }
+        )
+
+    # Build combined filter condition from all column bounds
+    filter_conditions = []
+    columns_processed = []
+    removal_details = []
+
+    for col_info in columns_with_outliers:
+        col_name = col_info.get("column_name")
+        lower_bound = col_info.get("lower_bound")
+        upper_bound = col_info.get("upper_bound")
+        outlier_count = col_info.get("outlier_count", 0)
+
+        if col_name and col_name in df.columns:
+            conditions = []
+            if lower_bound is not None:
+                conditions.append(f"`{col_name}` >= {lower_bound}")
+            if upper_bound is not None:
+                conditions.append(f"`{col_name}` <= {upper_bound}")
+
+            if conditions:
+                filter_conditions.append(" and ".join(conditions))
+                columns_processed.append(col_name)
+                removal_details.append(
+                    f"'{col_name}': {outlier_count} outliers (bounds: [{lower_bound:.4g}, {upper_bound:.4g}])"
+                )
+
+    if not filter_conditions:
+        return wrap_success(
+            {
+                "message": "No valid filter conditions could be built from metadata",
+                "original_dataset_id": dataset_id,
+                "new_dataset_id": dataset_id,
+                "n_rows_before": len(df),
+                "n_rows_after": len(df),
+                "columns_processed": [],
+            }
+        )
+
+    # Combine all conditions with AND (keep rows that are within bounds for ALL columns)
+    combined_condition = " and ".join(f"({c})" for c in filter_conditions)
+
+    try:
+        filtered = df.query(combined_condition)
+    except Exception as e:
+        return exception_to_error(
+            EXPRESSION_ERROR,
+            e,
+            hint=f"Error applying outlier filter: {combined_condition[:100]}",
+        )
+
+    n_rows_removed = len(df) - len(filtered)
+
+    new_dataset_id = register_dataset(
+        filtered,
+        filename="outliers_removed",
+        parent_dataset_id=dataset_id,
+        transformation_note=f"removed outliers from {', '.join(columns_processed)}",
+    )
+
+    result = {
+        "operation": "remove_outliers",
+        "original_dataset_id": dataset_id,
+        "new_dataset_id": new_dataset_id,
+        "n_rows_before": len(df),
+        "n_rows_after": len(filtered),
+        "n_rows_removed": n_rows_removed,
+        "n_columns": df.shape[1],
+        "columns_processed": columns_processed,
+        "removal_details": removal_details,
+        "filter_applied": combined_condition,
+        "message": f"Removed {n_rows_removed} rows containing outliers from {len(columns_processed)} column(s)",
+    }
+
+    return wrap_success(result)
+
+
+def get_outlier_removal_options(
+    outlier_metadata: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Helper function to generate user-friendly outlier removal options from metadata.
+
+    Returns a structured set of options the agent can present to the user
+    in a suggest-and-confirm pattern.
+
+    Args:
+        outlier_metadata: The outlier_metadata dict from data_quality_tool
+
+    Returns:
+        Dict with:
+        - options: List of removal options with descriptions
+        - total_outliers: Total count across all columns
+        - columns_affected: List of column names with outliers
+    """
+    if not outlier_metadata or "columns_with_outliers" not in outlier_metadata:
+        return {
+            "options": [],
+            "total_outliers": 0,
+            "columns_affected": [],
+            "message": "No outlier metadata available. Run data quality check first.",
+        }
+
+    columns_with_outliers = outlier_metadata.get("columns_with_outliers", [])
+    total_outliers = outlier_metadata.get("total_outlier_count", 0)
+
+    if not columns_with_outliers:
+        return {
+            "options": [],
+            "total_outliers": 0,
+            "columns_affected": [],
+            "message": "No outliers detected in the dataset.",
+        }
+
+    options = []
+    columns_affected = []
+
+    # Option 1: Remove all outliers
+    options.append(
+        {
+            "id": "all",
+            "description": f"Remove ALL outliers ({total_outliers} total across all columns)",
+            "columns": [c["column_name"] for c in columns_with_outliers],
+            "estimated_rows_removed": "varies based on overlap",
+        }
+    )
+
+    # Per-column options
+    for col_info in columns_with_outliers:
+        col_name = col_info.get("column_name", "unknown")
+        outlier_count = col_info.get("outlier_count", 0)
+        lower_bound = col_info.get("lower_bound")
+        upper_bound = col_info.get("upper_bound")
+        outlier_pct = col_info.get("outlier_pct", 0)
+
+        columns_affected.append(col_name)
+
+        bounds_desc = ""
+        if lower_bound is not None and upper_bound is not None:
+            bounds_desc = f"keep values in [{lower_bound:.4g}, {upper_bound:.4g}]"
+        elif lower_bound is not None:
+            bounds_desc = f"keep values >= {lower_bound:.4g}"
+        elif upper_bound is not None:
+            bounds_desc = f"keep values <= {upper_bound:.4g}"
+
+        options.append(
+            {
+                "id": col_name,
+                "description": f"Remove {outlier_count} outliers from '{col_name}' ({outlier_pct:.1%} of values) - {bounds_desc}",
+                "columns": [col_name],
+                "estimated_rows_removed": outlier_count,
+                "bounds": {"lower": lower_bound, "upper": upper_bound},
+            }
+        )
+
+    return {
+        "options": options,
+        "total_outliers": total_outliers,
+        "columns_affected": columns_affected,
+        "message": f"Found {total_outliers} outliers across {len(columns_affected)} column(s). Choose an option to remove them.",
+    }

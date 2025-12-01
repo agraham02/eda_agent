@@ -204,6 +204,12 @@ class NumericSummary(BaseModel):
     outliers: List[float] = Field(default_factory=list)
     outliers_truncated: bool = False
     outlier_method: str = "both"
+    lower_bound: Optional[float] = Field(
+        None, description="IQR lower bound for outlier detection"
+    )
+    upper_bound: Optional[float] = Field(
+        None, description="IQR upper bound for outlier detection"
+    )
 
 
 class DataQualityColumn(BaseModel):
@@ -318,6 +324,52 @@ class DataQualityResult(BaseModel):
     columns: List[DataQualityColumn]
     dataset_issues: List[str] = []
     readiness_score: Optional[Dict[str, Any]] = None  # Overall + component breakdown
+
+
+class OutlierColumnInfo(BaseModel):
+    """Schema for outlier information for a single column."""
+
+    column_name: str = Field(..., description="Column name with outliers")
+    outlier_count: int = Field(ge=0, description="Number of outliers detected")
+    outlier_pct: float = Field(
+        ge=0.0, le=1.0, description="Percentage of values that are outliers"
+    )
+    method: str = Field(
+        default="both", description="Detection method used: iqr, zscore, or both"
+    )
+    lower_bound: Optional[float] = Field(
+        None, description="IQR lower bound (values below are outliers)"
+    )
+    upper_bound: Optional[float] = Field(
+        None, description="IQR upper bound (values above are outliers)"
+    )
+    min_outlier_value: Optional[float] = Field(
+        None, description="Minimum outlier value"
+    )
+    max_outlier_value: Optional[float] = Field(
+        None, description="Maximum outlier value"
+    )
+    suggested_filter: str = Field(
+        default="", description="Suggested pandas query filter to remove outliers"
+    )
+
+
+class OutlierMetadata(BaseModel):
+    """Schema for storing outlier metadata across the session for reuse by wrangle_agent."""
+
+    dataset_id: str = Field(
+        ..., description="Dataset ID these outliers were detected in"
+    )
+    total_outlier_count: int = Field(
+        ge=0, description="Total outliers across all columns"
+    )
+    columns_with_outliers: List[OutlierColumnInfo] = Field(default_factory=list)
+    detection_method: str = Field(
+        default="both", description="Method used: iqr, zscore, or both"
+    )
+    suggested_actions: List[str] = Field(
+        default_factory=list, description="Suggested remediation actions"
+    )
 
 
 # ============================================================================

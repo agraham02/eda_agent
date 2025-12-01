@@ -129,6 +129,8 @@ def _numeric_summary(
 
         # IQR-based outlier detection
         iqr_outliers_mask = pd.Series([False] * len(series), index=series.index)
+        lower_bound = None
+        upper_bound = None
         if outlier_method in ["iqr", "both"]:
             lower_bound = q1 - 1.5 * iqr
             upper_bound = q3 + 1.5 * iqr
@@ -167,6 +169,8 @@ def _numeric_summary(
             outliers=outliers_preview,
             outliers_truncated=len(outliers) > 20,
             outlier_method=outlier_method,
+            lower_bound=float(lower_bound) if lower_bound is not None else None,
+            upper_bound=float(upper_bound) if upper_bound is not None else None,
         )
     except (ValueError, TypeError, KeyError) as e:
         # If numeric summary fails, return None
@@ -181,6 +185,11 @@ def data_quality_tool(dataset_id: str, outlier_method: str = "both") -> Dict[str
     Args:
         dataset_id: The ID of the dataset to analyze
         outlier_method: Method for outlier detection - "iqr", "zscore", or "both" (default: "both")
+
+    Returns:
+        A result dict containing:
+        - data: The full quality report (DataQualityResult)
+        - outlier_metadata: Structured outlier info for reuse by wrangle_agent
     """
     try:
         df = get_dataset(dataset_id)
@@ -197,6 +206,8 @@ def data_quality_tool(dataset_id: str, outlier_method: str = "both") -> Dict[str
 
     column_models: List[DataQualityColumn] = []
     dataset_issues: List[str] = []
+    outlier_columns: List[Dict[str, Any]] = []  # Use plain dicts to avoid schema issues
+    total_outlier_count = 0
 
     if duplicate_count > 0:
         dataset_issues.append(
@@ -234,6 +245,41 @@ def data_quality_tool(dataset_id: str, outlier_method: str = "both") -> Dict[str
             numeric_stats = _numeric_summary(
                 series.dropna(), outlier_method=outlier_method
             )
+
+            # Build outlier column info for reuse
+            if numeric_stats and numeric_stats.outlier_count > 0:
+                total_outlier_count += numeric_stats.outlier_count
+                outlier_pct = numeric_stats.outlier_count / max(1, n_rows - n_missing)
+
+                # Build suggested filter condition
+                filter_parts = []
+                if numeric_stats.lower_bound is not None:
+                    filter_parts.append(f"`{col}` >= {numeric_stats.lower_bound:.4g}")
+                if numeric_stats.upper_bound is not None:
+                    filter_parts.append(f"`{col}` <= {numeric_stats.upper_bound:.4g}")
+                suggested_filter = " and ".join(filter_parts) if filter_parts else ""
+
+                outlier_columns.append(
+                    {
+                        "column_name": col,
+                        "outlier_count": numeric_stats.outlier_count,
+                        "outlier_pct": outlier_pct,
+                        "method": outlier_method,
+                        "lower_bound": numeric_stats.lower_bound,
+                        "upper_bound": numeric_stats.upper_bound,
+                        "min_outlier_value": (
+                            min(numeric_stats.outliers)
+                            if numeric_stats.outliers
+                            else None
+                        ),
+                        "max_outlier_value": (
+                            max(numeric_stats.outliers)
+                            if numeric_stats.outliers
+                            else None
+                        ),
+                        "suggested_filter": suggested_filter,
+                    }
+                )
         else:
             numeric_stats = None
 
@@ -265,4 +311,31 @@ def data_quality_tool(dataset_id: str, outlier_method: str = "both") -> Dict[str
         dataset_issues=dataset_issues,
         readiness_score=readiness_score,
     )
-    return wrap_success(result_model.model_dump())
+
+    # Build suggested actions for outlier remediation
+    suggested_actions = []
+    for oc in outlier_columns:
+        if oc["outlier_pct"] > 0.15:
+            suggested_actions.append(
+                f"High outlier rate ({oc['outlier_pct']:.1%}) in '{oc['column_name']}': "
+                f"Consider removing values outside [{oc['lower_bound']:.4g}, {oc['upper_bound']:.4g}]"
+            )
+        elif oc["outlier_count"] > 0:
+            suggested_actions.append(
+                f"Found {oc['outlier_count']} outliers in '{oc['column_name']}': "
+                f"Filter: {oc['suggested_filter']}"
+            )
+
+    # Build outlier metadata as plain dict for session state (avoids Pydantic schema issues)
+    outlier_metadata = {
+        "dataset_id": dataset_id,
+        "total_outlier_count": total_outlier_count,
+        "columns_with_outliers": outlier_columns,
+        "detection_method": outlier_method,
+        "suggested_actions": suggested_actions,
+    }
+
+    # Return both the quality report and outlier metadata
+    result = wrap_success(result_model.model_dump())
+    result["outlier_metadata"] = outlier_metadata
+    return result
