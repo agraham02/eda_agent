@@ -38,7 +38,7 @@
                 }
             ],
             "session_input": {
-                "app_name": "eda_agent_app",
+                "app_name": "data_whisperer",
                 "user_id": "test_user"
             }
         }
