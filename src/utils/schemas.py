@@ -432,6 +432,70 @@ class MutateResult(WrangleResult):
 
 
 # ============================================================================
+# ANALYSIS RUN SCHEMAS (for long-term storage)
+# ============================================================================
+
+
+class RunType(str, Enum):
+    """Type of analysis run."""
+
+    QUALITY_CHECK = "quality_check"
+    DESCRIPTIVE = "descriptive"
+    INFERENCE = "inference"
+    FULL = "full"
+
+
+class StructuredResultsSchema(BaseModel):
+    """Compact structured results from an analysis run for storage."""
+
+    # Inference results
+    p_values: Dict[str, float] = Field(
+        default_factory=dict, description="Test name -> p-value"
+    )
+    confidence_intervals: Dict[str, List[float]] = Field(
+        default_factory=dict, description="Test name -> [lower, upper]"
+    )
+    effect_sizes: Dict[str, float] = Field(
+        default_factory=dict, description="Test name -> effect size"
+    )
+
+    # Descriptive highlights
+    descriptive_highlights: Dict[str, Any] = Field(
+        default_factory=dict, description="Key descriptive stats"
+    )
+
+    # Visualization paths
+    plot_paths: List[str] = Field(
+        default_factory=list, description="Paths to generated plots"
+    )
+
+
+class AnalysisRunResult(BaseModel):
+    """Schema for analysis run output (returned by tools)."""
+
+    run_id: str = Field(..., description="Unique run identifier")
+    dataset_id: str = Field(..., description="Dataset analyzed")
+    run_type: RunType = Field(..., description="Type of analysis")
+    summary_preview: str = Field(default="", description="First 500 chars of summary")
+    readiness_score: Optional[float] = Field(
+        None, description="Overall readiness score (0-100)"
+    )
+    created_at: str = Field(..., description="ISO timestamp")
+
+
+class RunComparisonResult(BaseModel):
+    """Schema for comparing two analysis runs."""
+
+    run_a_id: str
+    run_b_id: str
+    same_dataset: bool
+    readiness_delta: Optional[float] = Field(None, description="Score B - Score A")
+    p_value_changes: Dict[str, Dict[str, Optional[float]]] = Field(default_factory=dict)
+    summary_a_preview: str = ""
+    summary_b_preview: str = ""
+
+
+# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 

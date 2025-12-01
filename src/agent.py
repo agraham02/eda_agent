@@ -10,6 +10,15 @@ from .sub_agents.ingestion_agent import ingestion_agent
 from .sub_agents.quality_wrangle_loop_agent import quality_improvement_loop_agent
 from .sub_agents.summary_agent import summary_agent
 from .sub_agents.wrangle_agent import wrangle_agent
+from .tools.memory_tools import (
+    compare_runs_tool,
+    get_analysis_run_tool,
+    get_dataset_lineage_tool,
+    list_past_analyses_tool,
+    list_persisted_datasets_tool,
+    load_preferences_tool,
+    save_preferences_tool,
+)
 from .utils.consts import retry_config
 
 root_agent = LlmAgent(
@@ -17,7 +26,8 @@ root_agent = LlmAgent(
     name="root_orchestrator",
     description=(
         """Root orchestrator. Routes user requests to specialist agents, manages 
-    session state, enforces minimal call discipline."""
+    session state, enforces minimal call discipline. Supports long-term memory
+    for datasets, analysis runs, and user preferences."""
     ),
     instruction=(
         """
@@ -40,6 +50,22 @@ Agent responsibilities:
 - eda_viz_agent: Generate plots (single or batch)
 - eda_inference_agent: Hypothesis tests, significance, p-values ONLY
 - summary_agent: Final report combining all outputs
+
+Memory & Preference Tools (for long-term persistence):
+- save_preferences_tool: Save user preferences (writing style, alpha, plot density)
+- load_preferences_tool: Load saved preferences at session start
+- list_past_analyses_tool: List previous analysis runs for a dataset
+- get_analysis_run_tool: Get full details of a past run
+- compare_runs_tool: Compare two runs (readiness delta, p-value changes)
+- list_persisted_datasets_tool: Show all datasets saved across sessions
+- get_dataset_lineage_tool: Trace transformation history of a dataset
+
+When user asks about:
+- "my preferences" or "settings" → use preference tools
+- "past analyses", "previous runs", "history" → use list_past_analyses_tool
+- "compare with last run", "how did quality change" → use compare_runs_tool
+- "what datasets do I have", "show saved data" → use list_persisted_datasets_tool
+- "how was this dataset created", "transformation history" → use get_dataset_lineage_tool
 
 Three routing modes:
 
@@ -111,5 +137,13 @@ Constraints:
         AgentTool(agent=eda_viz_agent),
         AgentTool(agent=summary_agent),
         AgentTool(agent=quality_improvement_loop_agent),
+        # Memory and preference tools
+        save_preferences_tool,
+        load_preferences_tool,
+        list_past_analyses_tool,
+        get_analysis_run_tool,
+        compare_runs_tool,
+        list_persisted_datasets_tool,
+        get_dataset_lineage_tool,
     ],
 )

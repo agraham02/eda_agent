@@ -46,7 +46,12 @@ def ingest_csv(file_path: str, max_sample_rows: int = 20) -> Dict[str, Any]:
     """
     df = pd.read_csv(file_path)
 
-    dataset_id = register_dataset(df)
+    # Extract filename from path for lineage tracking
+    import os
+
+    filename = os.path.basename(file_path)
+
+    dataset_id = register_dataset(df, filename=filename)
 
     n_rows, n_cols = df.shape
 

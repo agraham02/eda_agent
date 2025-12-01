@@ -182,13 +182,13 @@ Legend: (P1) High impact / core promise, (P2) Important, (P3) Nice-to-have / str
 **Files to modify:** `src/utils/data_store.py`, `src/utils/dataset_cache.py`  
 **Files to create:** `config.yaml`
 
--   [ ] Add parquet export to `dataset_cache.py`
--   [ ] Create storage directory (default: `./data/datasets/`)
--   [ ] Add retrieval by dataset_id
--   [ ] Implement cleanup policy (time-based or count-based)
--   [ ] Add configuration file for storage paths
--   [ ] Create `list_datasets` and `load_dataset` tools
--   [ ] Add dataset metadata tracking (created_at, shape, columns)
+-   [x] Add parquet export to `dataset_cache.py`
+-   [x] Create storage directory (default: `./data/datasets/`)
+-   [x] Add retrieval by dataset_id
+-   [x] Implement cleanup policy (time-based or count-based)
+-   [x] Add configuration file for storage paths
+-   [x] Create `list_datasets` and `load_dataset` tools
+-   [x] Add dataset metadata tracking (created_at, shape, columns)
 
 **Acceptance criteria:**
 

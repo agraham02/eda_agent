@@ -61,7 +61,12 @@ def apply_row_filter(
     except Exception as e:
         raise ValueError(f"Invalid filter condition '{condition}': {e}")
 
-    new_dataset_id = register_dataset(filtered)
+    new_dataset_id = register_dataset(
+        filtered,
+        filename="filtered",
+        parent_dataset_id=dataset_id,
+        transformation_note=f"filter: {condition[:100]}",
+    )
 
     result = FilterResult(
         original_dataset_id=dataset_id,
@@ -99,7 +104,12 @@ def select_columns(
         raise ValueError(f"Columns not found in dataset: {missing}")
 
     selected = df[columns].copy()
-    new_dataset_id = register_dataset(selected)
+    new_dataset_id = register_dataset(
+        selected,
+        filename="selected",
+        parent_dataset_id=dataset_id,
+        transformation_note=f"select: {', '.join(columns[:5])}{'...' if len(columns) > 5 else ''}",
+    )
 
     result = SelectResult(
         original_dataset_id=dataset_id,
@@ -153,7 +163,13 @@ def mutate_columns(
         if col_name not in existing_cols:
             new_cols_created.append(col_name)
 
-    new_dataset_id = register_dataset(modified)
+    expr_summary = ", ".join(f"{k}={v[:20]}" for k, v in list(expressions.items())[:3])
+    new_dataset_id = register_dataset(
+        modified,
+        filename="mutated",
+        parent_dataset_id=dataset_id,
+        transformation_note=f"mutate: {expr_summary}",
+    )
 
     result = MutateResult(
         original_dataset_id=dataset_id,
