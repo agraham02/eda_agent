@@ -1,6 +1,6 @@
 # Data Whisperer
 
-An autonomous multi-agent system that automatically evaluates dataset quality and performs exploratory data analysis (EDA) to assess ML readiness.
+An autonomous multi-agent system that evaluates dataset quality and performs exploratory data analysis (EDA) to assess ML readiness.
 
 ## Overview
 
@@ -45,18 +45,44 @@ Datasets receive a score from 0-100 with clear labels:
 
 ## Getting Started
 
+### Prerequisites
+
+-   Python 3.10+
+-   A Google AI Studio API key in `GOOGLE_API_KEY` (required by ADK/Gemini)
+
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the agent
-adk run eda_agent
-
-# Or use the web interface
-adk web --port 8000
+# Bash (macOS/Linux/Git Bash on Windows)
+export GOOGLE_API_KEY="<your_api_key>"
 ```
 
-Upload your dataset and receive a comprehensive analysis report with actionable recommendations.
+```bash
+# 1) Create and activate a virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate    # On Windows Git Bash: source .venv/Scripts/activate
+
+# 2) Install dependencies
+pip install -r requirements.txt
+
+# 3) Launch the web interface (easy demo path)
+adk web --port 8000
+
+# 4) (Optional) Run from CLI using the app name defined in code
+adk run data_whisperer
+```
+
+Upload a CSV and receive a comprehensive analysis report with actionable recommendations.
+
+### Quick Demo (local file)
+
+Use the included diabetes dataset to try the end‑to‑end flow:
+
+```bash
+# Start the ADK Web UI
+adk web --port 8000
+
+# In the UI, ask:
+# "Analyze test_data/diabetes.csv and give me the readiness report."
+```
 
 ## Report Contents
 
@@ -88,9 +114,11 @@ pytest tests/ -v -m smoke
 # Run all tests including integration
 pytest tests/ -v
 
-# Run ADK evaluations
-adk eval eda_agent tests/eval/
+# Run ADK evaluations (use the app name from src/agent.py)
+adk eval data_whisperer tests/eval/
 ```
+
+Note: If any `.test.json` in `tests/eval/` specifies an `app_name`, ensure it matches `data_whisperer` (the app name in `src/agent.py`).
 
 ### Interactive Testing with ADK Web UI
 
@@ -109,6 +137,33 @@ The Web UI provides:
 -   Tool trajectory visualization
 
 **Tip for Demos:** Record your demo flow in the Web UI, then export it as a `.test.json` file for regression testing.
+
+## Architecture
+
+This project uses a modular, multi‑agent architecture:
+
+-   Orchestrator: routes requests, manages minimal pipelines
+-   Ingestion & Schema: loads datasets, infers dtypes
+-   Data Quality: computes readiness score and quality findings
+-   EDA Describe: statistics, correlations, relationships
+-   Visualization: distribution and relationship plots
+-   Inference: significance and hypothesis tests (when requested)
+-   Summary: composes the final report, including readiness
+
+App identifier for ADK: `data_whisperer` (see `src/agent.py`).
+
+## Limitations & Next Steps
+
+-   Tested on medium datasets; processing is in‑memory
+-   Sequential orchestration; future work to parallelize steps
+-   File types focused on CSV; Excel/JSON ingestion planned
+-   Wrangle expressions have partial hardening; further sandboxing planned
+
+See `TODO.md` for the prioritized roadmap.
+
+## Submission
+
+For a concise hackathon write‑up (problem, solution, architecture, demo, and impact), see `SUBMISSION.md`.
 
 ## Author
 
